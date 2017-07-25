@@ -21,19 +21,19 @@ This is a temporary repository location. Do not depend on its long term existenc
 Current interesting capabilities include:
 
 1) A JSONBlockstore for storing all data in one offset and block readable file as native JSON. This is far faster than using separate files for each
-object. Without a caching wrapper it has been tested to run at approximately 5K writes or reads per second on a non-SSD drive. With a caching wrapper 
+object. Without a caching wrapper it has been tested to run at approximately 8K writes and 4.5K record reads per second on a non-SSD drive. With a caching wrapper 
 it will appear to run at about 25K reads per second. It appears immune to speed degradation with size. Without caching From 10,000 to 1,000,000 
 (admittedly tiny) records it has the same performance on an i5 Windows 10 machine with 8GB RAM. A current limitation of the JSONBlockstore is that
 there must be sufficient RAM to keep all object keys in memory with their file offset/block size. For 1,000,000 records this is 46MB
-for keys similar to `"#Object#5610914913666407":[0,117]`. 
+for keys similar to `"#Object#5610914913666407":[0,117,0,37]`. 
 
 2) A layered storage mechanism which makes it simple to add new storage types with automatic caching and "smart" serialization. The classes include:
-e.g. MemStore, LocalStore, JSONBlockStore, CacheStore, StorageSerializer.
+e.g. MemStore, LocalStore, JSBlockStore, JSONBlockStore, CacheStore, StorageSerializer.
 
-3) "Smart" serialization. The database can "learn" about new classes as they are inserted and restored data into appropriate class instances.
+3) "Smart" serialization. The database can "learn" about new classes as they are inserted and restore data into appropriate class instances.
 
 4) A full range of predicates for get(<property>).<predicate>(<value>)... expressions. This makes application code more transparent while also reducing network
-traffic. Review the unit test file `test/index.js` to see the predicates.
+traffic. Only data that fully satisfies the predicate test is passed back over the network. Review the unit test file `test/index.js` to see the predicates.
 
 5) Inline collection of matching data, e.g. get(<property>).<predicate>(<value>).collect(<some collection>)...
 
@@ -49,14 +49,6 @@ of queries this is manageable. Also, to reduce load on a remote peer, requests f
 # Futures
 
 Additional exploration in the area of domain specialized indexes for JSON objects is being considered.
-
-JSONBlockStore requires the addition of logging, compression, recovery, and potentially transactions to make it production ready.
-
-JSONBlockStore could be generalized to JSBlockStore where the stored data would not have to be valid JSON objects. It would provide a very simple interface,
-e.g. `<buffer> = await get(<key>,[<block>])` where block would be an optional array passed in which when the function returns contains the block where the object
-was found and `[start,end] = await set(<key>,<bufferOrObjectOrPrimitive>)` and `await delete(<key>)` and `await clear()` which would handle 
-the mechanics of allocating/deallocating storage if necessary. It could also provide `count()` and `key(<index>)` methods.
-
 
 The benchamrk and unit tests are in the test directory. They can be run without a server. Open the .html files in a browser. Or, run `mocha test/index.js`
 and `node test/benchmark.js`
