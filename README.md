@@ -45,16 +45,16 @@ It is in an early ALPHA and currently supports:
 
 8) Security using graph path strings or arrays. This allows the application of security at any level desired, e.g.
 
-	a) Object/<security rule> - controls all Objects
+	a) `Object/<security rule>` - controls all Objects
 
-	b) Object/SSN/<security rule> - controls all SNN property data on all Objects
+	b) `Object/SSN/<security rule>` - controls all SNN property data on all Objects
 
-	c) Object/name/"Joe"/<security rule> - controls the the Objects that happen to have the name "Joe"
+	c) `Object/name/"Joe"/<security rule>` - controls the the Objects that happen to have the name "Joe"
 
-	d) ["*","*",(value) => (new RegExp('^\\d{3}-?\\d{2}-?\\d{4}$')).test(value)],<security rule> - controls all data that happens to look like an SSN.
+	d) `["*","*",(value) => (new RegExp('^\\d{3}-?\\d{2}-?\\d{4}$')).test(value)],<security rule>` - controls all data that happens to look like an SSN.
 
 
-The internals of AnyWhichWay are based on asychronous generators to ensure non-blocking return of results as fast ass possible. For example, the join command above yields 
+The internals of AnyWhichWay are based on asychronous generators to ensure non-blocking return of results as fast as possible. For example, the join command above yields 
 one pair at a time rather than assembling all possible pairs before returning like one must do with a SQL store or even with many No-SQL databases that don't support streaming result sets.
 
 
@@ -64,13 +64,13 @@ one pair at a time rather than assembling all possible pairs before returning li
 
 AnyWhichWay will run in current versions of Chrome and Firefox.
 
-Node v9.7.1 (the most recent at this writing) must be run with the --harmony flag. 
+Node v9.7.1 (the most recent at this writing) must be run with the `--harmony` flag. 
 
 Babel transpiled code will not work. It does not seem to generate correct asynchronous generators.
 
 # Doumentation Notes
 
-When "Object" is capilatized it refers to a direct instance of the class Object. When "object" is lower case it refers to an instance of any type of class except Array, which will use the term "array".
+When "Object" is capitalized it refers to a direct instance of the class Object. When "object" is lower case it refers to an instance of any type of class except Array, which will use the term "array".
 
 The property "#" is the default used for unique uuidv4 ids on objects in AnyWhichWay. See the section Metadata for more info.
 
@@ -125,24 +125,25 @@ Object/address/zipcode/base/98110
 
 Any location in the path can also be the * wildcard, a compiled inline test, or a dynamic inline test, e.g.
 
-```
-Object/address/city/* - matches any Object with an address with a city property and returns the Object
 
-Object/address/city - returns all city names for Objects that have and address property
+`Object/address/city/*` - matches any Object with an address with a city property and returns the Object
 
-Object/address/state/in(["WA","OR"]) - return all objects with addresses in WA or OR
+`Object/address/city` - returns all city names for Objects that have and address property
 
-Object/address/zipcode/base/(value) => value>=98100 && value<=98199 - return all Objects with an address in the zipcode base range of 98100 to 98199
+`Object/address/state/in(["WA","OR"])` - return all objects with addresses in WA or OR
 
-Object/address/zipcode/base/between(98100,98199,true) - alternate way to achieve the above will a compiled inline
+`Object/address/zipcode/base/(value) => value>=98100 && value<=98199` - return all Objects with an address in the zipcode base range of 98100 to 98199
 
-Object/*/(value) => ... some code - the equivalent of a table scan across all Objects and all properties
+`Object/address/zipcode/base/between(98100,98199,true)` - alternate way to achieve the above will a compiled inline
 
-Object/#/(value) => ... some code - the equivalent of a table scan across all Objects
+`Object/*/(value) => ... some code` - the equivalent of a table scan across all Objects and all properties
 
-*/#/(value) => ... some code - the equivalent of a table scan across instances of all classes
+`Object/#/(value) => ... some code` - the equivalent of a table scan across all Objects
 
-```
+`*/#/(value) => ... some code` - the equivalent of a table scan across instances of all classes
+
+Dynamic in-line tests expose the code to injection risk and must be enabled by setting `inline` to true in the options object when a database connection is created. Any in-line test can be added as a compiled test to avoid this issue. See Extending AnyWhichWay.
+
 
 Data can be retrieved using a graph path, e.g.:
 
@@ -172,20 +173,18 @@ Unique object uuidv4 ids are stored on objects themselves rather than in metadat
 
 All security is expressed using graph paths and a special query command `secure(path,function)`. This allows the application of security at any level desired, e.g.
 
-```javascript
-get().secure("Object",<security rule>) - controls all Objects
+`get().secure("Object",<security rule>)` - controls all Objects
 
-get().secure("Object/SSN",<security rule>) - controls all data stored in SNN property on all Objects
+`get().secure("Object/SSN",<security rule>)` - controls all data stored in SNN property on all Objects
 
-get().secure("Object/name/"Joe",<security rule>) - controls the the Objects that happen to have the name "Joe"
+`get().secure("Object/name/"Joe",<security rule>)` - controls the the Objects that happen to have the name "Joe"
 
-get().secure(["Object","*",(value) => (new RegExp('^\\d{3}-?\\d{2}-?\\d{4}$')).test(value)],<security rule>) - controls all data that happens to look like an SSN.
-```
+`get().secure(["Object","*",(value) => (new RegExp('^\\d{3}-?\\d{2}-?\\d{4}$')).test(value)],<security rule>)` - controls all data that happens to look like an SSN.
 
 
 Security rules are just a special type of function with the form: 
 
-```javascript
+```
 (action,returnValue,storedValue[,key]) => ... your code ... 
 ```
 
@@ -195,8 +194,10 @@ Returning `true` (not just a truthy) will allow the action.
 
 At the moment it is up to the implementor to look-up session ids, user ids and groups if they are needed.
 
-Since the "returnValue" reference is an in memory version, it can be modified, i.e. properties can be deleted or 
-their values can be masked for read and eliminated or restored to their current stored value for write. The "storedValue" is frozen and should be
+Since the `returnValue` reference is an in memory version, it can be modified, i.e. properties can be deleted or 
+their values can be masked for read and eliminated or restored to their current stored value for write. The `storedValue` is frozen and should be
 used for reference only. Attempts to change it will result in an error.
+
+# Extending AnyWhichWay
 
 
