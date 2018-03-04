@@ -32,6 +32,30 @@ function handler (request,response) {
         case ".css":
             contenttype = "text/css";
             break;
+        case ".gif": 
+    		contenttype = "application/gif";
+    		break;
+        case ".jpeg": 
+    		contenttype = "image/jpeg";
+    		break;
+        case ".jpg": 
+    		contenttype = "image/jpeg";
+    		break;
+        case ".png": 
+    		contenttype = "application/png";
+    		break;
+        case ".ttf": 
+    		contenttype = "application/font-sfnt";
+    		break;
+        case ".woff":
+        	contenttype = "application/font-woff";
+        	break;
+        case ".woff2":
+        	contenttype = "application/font-woff";
+        	break;
+        case ".xml": 
+    		contenttype = "text/xml";
+    		break;
     }
     
     if(!contenttype) {
@@ -52,7 +76,7 @@ function handler (request,response) {
                 code = 500;
                 message = "Sorry, check with the site admin for error: "+error.code+" ..\n";
             }
-            console.log(code,error.code,path.normalize([__dirname,filepath].join("/")));
+            //console.log(code,error.code,path.normalize([__dirname,filepath].join("/")));
             response.writeHead(code);
             response.end(message);
             response.end();

@@ -2,25 +2,20 @@
 	"name": "anywhichway",
 	"private": false,
 	"scripts": {
-		"deploy": "gcloud app deploy",
 		"start": "node app.js"
 	},
 	"dependencies": {
-		"@google-cloud/storage": "^1.2.1",
-		"blockstore": "0.0.10",
-		"cryptozoa": "0.0.7",
-		"googleapis": "^20.1.0",
-		"memory-streams": "^0.1.2",
-		"node-localstorage": "^1.3.0",
-		"node-uuid": "^1.4.8",
-		"node-webcrypto-ossl": "^1.0.30",
-		"socket.io": "^2.0.3"
+		"@babel/polyfill": "^7.0.0-beta.40"
 	},
 	"devDependencies": {
 		"chai": "^4.1.0",
-		"mocha": "^3.4.2"
+		"idb-kv-store": "^4.3.1",
+		"mocha": "^3.4.2",
+		"node-fetch": "^1.7.1",
+		"node-localstorage": "^1.3.0",
+		"redis": "^2.8.0"
 	},
 	"engines": {
-		"node": "8.x"
+		"node": "9.x"
 	}
 }

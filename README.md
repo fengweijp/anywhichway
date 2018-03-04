@@ -1,54 +1,202 @@
-#anywhichway
+# AnyWhichWay
 
-This repository is an experiment/prototype for:
+AnyWhichWay is a JavaScript database that can be backed by almost any key-value store that exposes `get(key)`, `set(key,data)`, `del(key)` or similar methods synchronously or asynchronously. 
 
-1) feature exploration related to enhancing the Gun database,
+Although AnyWhichWay doesn't change what's possible with a database, we think it makes things simpler.
 
-2) testing various JSON indexing approaches,
+The key values stores that will not work are those that generate file names for the keys, e.g. node-localstorage. This is because the keys generated internally by AnyWhichWay are often not valid file names.
 
-3) development of JSONBlockStore in the context of higher level needs.
+This version has been tested with: localStorage, Redis, idbkvstore. AnyWhichWay has build in logic to find the appropriate get, set, and delete methods.
 
-The code is not dependent on Gun, rather it is exposes a Gun-like API.
+It is in an early ALPHA and currently supports:
 
-There is zero focus on packaging.
 
-Unique ids are currently generated using an unreliable random number approach.
+1) Graph navigation over fully indexed data:
 
-This is a temporary repository location. Do not depend on its long term existence.
+	a) with exact matching, e.g. `get("Person/email/'jsmith@somewhere.com'")` retrieves the Person with the provided e-mail.
+	
+	b) with inline tests, e.g. `get("Person/age/gt(27)")` retrieves all Persons over 27.
+	
+	c) with property value retrieval, e.g. `get("Person/age")` will return all the possible ages for Persons directly off the index.
+	
+	d) with wild cards, e.g. `get("*/email/*")`, will retrieve all objects that have an email property.
+	
+	e) with inline functions, e.g. `get("Person/age/(value) => value>27")` also retrieves all Persons over 27, although more slowly
+	
+2) Object retrieval based on patterns:
 
-# Capability
+	a) with exact matching, e.g. `get({email:"jsmith@somewhere.com"},Person)` retrieves the Person with the provided e-mail.
+	
+	b) with tests, e.g. `get({age:value => value>27,name:"Joe"},Person)` retrieves all Persons over 27 with name "Joe".
+	
+	c) with coerced classes, e.g. `get({email:"jsmith@somewhere.com", instanceof:"Person"})` retrieves the Person with the provided e-mail.
+	
+3) Object joins:
 
-Current interesting capabilities include:
+	a) e.g. `get({instanceOf:Guest},{instanceOf:Guest}).join((guest1,guest2) => guest1.id!=guest2.id)` retrieves all possible Guest pairs
+	
+4) "Smart" serialization. The database "learns" about new classes as they are inserted and restores data into appropriate class instances.
+	
+5) A set of over 30 piped Query commands such as `first(n)`, `last(n)`, `map(f)`, `mapReduce(mapper,reducer)` , `put(object)`, `reduce(f,init)`.
 
-1) A JSONBlockstore for storing all data in one offset and block readable file as native JSON. This is far faster than using separate files for each
-object. Without a caching wrapper it has been tested to run at approximately 8K writes and 4.5K record reads per second on a non-SSD drive. With a caching wrapper 
-it will appear to run at about 25K reads per second. It appears immune to speed degradation with size. Without caching From 10,000 to 1,000,000 
-(admittedly tiny) records it has the same performance on an i5 Windows 10 machine with 8GB RAM. A current limitation of the JSONBlockstore is that
-there must be sufficient RAM to keep all object keys in memory with their file offset/block size. For 1,000,000 records this is 46MB
-for keys similar to `"#Object#5610914913666407":[0,117,0,37]`. 
+6) The ability to add new compiled inline graph and piped commands in as little as one line of code.
 
-2) A layered storage mechanism which makes it simple to add new storage types with automatic caching and "smart" serialization. The classes include:
-e.g. MemStore, LocalStore, JSBlockStore, JSONBlockStore, CacheStore, StorageSerializer.
+7) Inspection and automatic "polyfilling" of passed in storage, e.g. storage can provide `del`, `delete`, `remove`, or `removeItem`.
 
-3) "Smart" serialization. The database can "learn" about new classes as they are inserted and restore data into appropriate class instances.
+8) Security using graph path strings or arrays. This allows the application of security at any level desired, e.g.
 
-4) A full range of predicates for get(<property>).<predicate>(<value>)... expressions. This makes application code more transparent while also reducing network
-traffic. Only data that fully satisfies the predicate test is passed back over the network. Review the unit test file `test/index.js` to see the predicates.
+	a) Object/<security rule> - controls all Objects
 
-5) Inline collection of matching data, e.g. get(<property>).<predicate>(<value>).collect(<some collection>)...
+	b) Object/SSN/<security rule> - controls all SNN property data on all Objects
 
-6) No graph or other structures on top of the application JSON objects. Because the query results are asynchronously provided as they are found, there
-is the preception of high performance so long as there is a matching record every 1K records or so. This results in a very small code base around 
-which it is easy to prototype. Code unrelated to storage is less than 500 lines. How is this accomplished you may wonder ... queries are actually created
-as filters and every time a new object is found in the existing data or inserted all filters are processed. In a client/server model where a server
-is typically processing lots of queries, this would be a problem. However, in a peer to peer model where the peers are typically processing a smaller number
-of queries this is manageable. Also, to reduce load on a remote peer, requests for matching data are momentary find operations not full blown queries.
+	c) Object/name/"Joe"/<security rule> - controls the the Objects that happen to have the name "Joe"
 
-7) The beginnings of configurable replication through the specification of `sources` and `sinks`.
+	d) ["*","*",(value) => (new RegExp('^\\d{3}-?\\d{2}-?\\d{4}$')).test(value)],<security rule> - controls all data that happens to look like an SSN.
 
-# Futures
 
-Additional exploration in the area of domain specialized indexes for JSON objects is being considered.
+The internals of AnyWhichWay are based on asychronous generators to ensure non-blocking return of results as fast ass possible. For example, the join command above yields 
+one pair at a time rather than assembling all possible pairs before returning like one must do with a SQL store or even with many No-SQL databases that don't support streaming result sets.
 
-The benchamrk and unit tests are in the test directory. They can be run without a server. Open the .html files in a browser. Or, run `mocha test/index.js`
-and `node test/benchmark.js`
+
+# Installation
+
+`npm install anywhichway`
+
+AnyWhichWay will run in current versions of Chrome and Firefox.
+
+Node v9.7.1 (the most recent at this writing) must be run with the --harmony flag. 
+
+Babel transpiled code will not work. It does not seem to generate correct asynchronous generators.
+
+# Doumentation Notes
+
+When "Object" is capilatized it refers to a direct instance of the class Object. When "object" is lower case it refers to an instance of any type of class except Array, which will use the term "array".
+
+The property "#" is the default used for unique uuidv4 ids on objects in AnyWhichWay. See the section Metadata for more info.
+
+The property "^" is the default used for object metadata. See the section Metadata for more info.
+
+
+# Basic Example
+
+
+# Storing Data
+
+You can use AnyWhichWay like a regular key-value store. Just be careful not to use a classname as the key or you will over-write any instances of that class along with the associated index. Best practice is to simply prefix your key path with the something unique e.g. `kv/mykey` vs just `mykey`.
+
+
+To store an object and have it indexed, just use 'put(object)` at the root level, e.g.
+
+```javascript
+mydb.get().put({name:"Joe",age:27}).exec(); // inserts an Object
+
+const p = new Person({name:"Joe",age:27});
+mydb.get().put({name:"Joe",age:27}).exec(); // inserts a Person
+
+mydb.get().put({name:"Joe",age:27,instanceof:Person}).exec(); // inserts a Person by coercing the data
+
+```
+
+Multiple objects can be inserted at once:
+
+```javascript
+mydb.get().put({name:"Joe",age:27},{name:"Mary",age:26).exec(); // inserts an Object
+
+```
+
+You can return all the objects inserted instead of just executing:
+
+```javascript
+await results = mydb.get().put({name:"Joe",age:27},{name:"Mary",age:26).all(); // inserts an Object
+
+```
+
+# Graph Navigation
+
+Graph references generally start with a classname followed by a property and a value or another property if the value is itself an object, e.g.
+
+```
+{address:{city:"Bainbridge Island",state:"WA",zipcode:{base:98110,plus4:0000}}}
+
+Object/address/city/"Bainbridge Island"
+
+Object/address/zipcode/base/98110
+```
+
+Any location in the path can also be the * wildcard, a compiled inline test, or a dynamic inline test, e.g.
+
+```
+Object/address/city/* - matches any Object with an address with a city property and returns the Object
+
+Object/address/city - returns all city names for Objects that have and address property
+
+Object/address/state/in(["WA","OR"]) - return all objects with addresses in WA or OR
+
+Object/address/zipcode/base/(value) => value>=98100 && value<=98199 - return all Objects with an address in the zipcode base range of 98100 to 98199
+
+Object/address/zipcode/base/between(98100,98199,true) - alternate way to achieve the above will a compiled inline
+
+Object/*/(value) => ... some code - the equivalent of a table scan across all Objects and all properties
+
+Object/#/(value) => ... some code - the equivalent of a table scan across all Objects
+
+*/#/(value) => ... some code - the equivalent of a table scan across instances of all classes
+
+```
+
+Data can be retrieved using a graph path, e.g.:
+
+```javascript
+get("Object/address/city/*").all();
+```
+
+Paths can also be handed in as arrays, e.g.:
+
+```javascript
+get(["Object","address","city","*").all();
+```
+
+Note: Dynamic in-line tests MUST use parentheses around agruments, even if there is just one.
+
+# Query Patterns
+
+
+# Metadata
+
+The signature of metadata is: `{created:Date,updated:Date,createdBy:uuidv4,updatedBy:uuidv4,expires:Date,lifespan:milliseconds}`.
+
+Unique object uuidv4 ids are stored on objects themselves rather than in metadata. Their signature is: `<classname>@<uuidv4>`.
+
+
+# Security
+
+All security is expressed using graph paths and a special query command `secure(path,function)`. This allows the application of security at any level desired, e.g.
+
+```javascript
+get().secure("Object",<security rule>) - controls all Objects
+
+get().secure("Object/SSN",<security rule>) - controls all data stored in SNN property on all Objects
+
+get().secure("Object/name/"Joe",<security rule>) - controls the the Objects that happen to have the name "Joe"
+
+get().secure(["Object","*",(value) => (new RegExp('^\\d{3}-?\\d{2}-?\\d{4}$')).test(value)],<security rule>) - controls all data that happens to look like an SSN.
+```
+
+
+Security rules are just a special type of function with the form: 
+
+```javascript
+(action,returnValue,storedValue[,key]) => ... your code ... 
+```
+
+`action` is one of `get`, `put`, `delete`.
+
+Returning `true` (not just a truthy) will allow the action.
+
+At the moment it is up to the implementor to look-up session ids, user ids and groups if they are needed.
+
+Since the "returnValue" reference is an in memory version, it can be modified, i.e. properties can be deleted or 
+their values can be masked for read and eliminated or restored to their current stored value for write. The "storedValue" is frozen and should be
+used for reference only. Attempts to change it will result in an error.
+
+
