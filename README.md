@@ -126,23 +126,24 @@ Object/address/zipcode/base/98110
 Any location in the path can also be the * wildcard, a compiled inline test, or a dynamic inline test, e.g.
 
 
-`Object/address/city/*` - matches any Object with an address with a city property and returns the Object
+`Object/address/city/*` - matches any Object with an address and a city property and returns the Object
 
-`Object/address/city` - returns all city names for Objects that have and address property
+`Object/address/city` - returns all city names for Objects that have an address property
 
 `Object/address/state/in(["WA","OR"])` - return all objects with addresses in WA or OR
 
 `Object/address/zipcode/base/(value) => value>=98100 && value<=98199` - return all Objects with an address in the zipcode base range of 98100 to 98199
 
-`Object/address/zipcode/base/between(98100,98199,true)` - alternate way to achieve the above will a compiled inline
+`Object/address/zipcode/base/between(98100,98199,true)` - alternate way to achieve the above with a compiled inline
 
-`Object/*/(value) => ... some code` - the equivalent of a table scan across all Objects and all properties
+`Object/*/(value) => ... some code` - the equivalent of a table scan across all Objects and all properties, returns all Objects with property values satisfying the inline
 
-`Object/#/(value) => ... some code` - the equivalent of a table scan across all Objects
+`Object/#/(value) => ... some code` - the equivalent of a table scan across all Objects, returns all Objects satisfying the inline
 
-`*/#/(value) => ... some code` - the equivalent of a table scan across instances of all classes
 
-Dynamic in-line tests expose the code to injection risk and must be enabled by setting `inline` to true in the options object when a database connection is created. Any in-line test can be added as a compiled test to avoid this issue. See Extending AnyWhichWay.
+`*/#/(value) => ... some code` - the equivalent of a table scan across instances of all classes, returns all objects satisfying the inline
+
+Dynamic in-line tests expose the code to injection risk and must be enabled by setting `inline` to true in the options object when a database connection is created. Any in-line test can be added as compiled tests to avoid this issue. See Extending AnyWhichWay.
 
 
 Data can be retrieved using a graph path, e.g.:
