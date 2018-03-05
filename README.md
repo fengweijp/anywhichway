@@ -200,4 +200,6 @@ used for reference only. Attempts to change it will result in an error.
 
 # Extending AnyWhichWay
 
+# Release History (reverse chornological order)
 
+2018-03-04 - Publication of major re-write and release track ALPHA
