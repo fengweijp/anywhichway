@@ -50,9 +50,10 @@ const benchmark = (test) => { if(test.name[0]==="#") perf.push(test); }
 function Car(config) {
 	Object.assign(this,config);
 }
+Car.prototype.makeAndModel = function() { return `${this.brand}:${this.model}`; }
 
-const init = db0.get().put({age:27,name:"Joe",secret:"wink!",SSN:"999-99-9999"},{name:"John",secret:"wink!",SSN:"999-99-9999"},{name:"John",age:29,secret:"wink!",SSN:"999-99-9999"},new Car({brand:"Audi"})).all();
-//db0.register(Car);
+const init = db0.get().put({enrolled:new Date("August 19, 1975 23:15:30"),age:27,name:"Joe",secret:"wink!",SSN:"999-99-9999"},{name:"John",secret:"wink!",SSN:"999-99-9999"},{name:"John",age:29,secret:"wink!",SSN:"999-99-9999"},new Car({brand:"Audi",model:"A4"})).all();
+//db0.register(Date);
 
 
 describe("Test",function () {
@@ -88,10 +89,46 @@ describe("Test",function () {
 				done()})
 			.catch(e => done(e))
 	});
+	it(`# db0.get("Date/month/7").all()`,function(done) {
+		const test  = eval("()=>"+this.test.title.substring(1));
+		test().then(result => {
+				expect(result[0].enrolled+""==new Date("August 19, 1975 23:15:30")).to.equal(true);
+				this.test.title += " = " + JSON.stringify(result);
+				done(); 
+				benchmark({name:this.test.title,fn:test});})
+			.catch(e => done(e))
+	});
+	it(`# db0.get("Date/*/../*").all()`,function(done) {
+		const test  = eval("()=>"+this.test.title.substring(1));
+		test().then(result => {
+				expect(new Date(result[0].enrolled)+""==new Date("August 19, 1975 23:15:30")+"").to.equal(true);
+				this.test.title += " = " + JSON.stringify(result);
+				done(); 
+				benchmark({name:this.test.title,fn:test});})
+			.catch(e => done(e))
+	});
+	it(`# db0.get("Date/*/../*/age/27").all()`,function(done) {
+		const test  = eval("()=>"+this.test.title.substring(1));
+		test().then(result => {
+				expect(result[0].age).to.equal(27);
+				this.test.title += " = " + JSON.stringify(result);
+				done(); 
+				benchmark({name:this.test.title,fn:test});})
+			.catch(e => done(e))
+	});
 	it(`# db0.get("Car/brand/'Audi'").all()`,function(done) {
 		const test  = eval("()=>"+this.test.title.substring(1));
 		test().then(result => {
 				expect(result[0] instanceof Car).to.equal(true);
+				this.test.title += " = " + JSON.stringify(result);
+				done(); 
+				benchmark({name:this.test.title,fn:test});})
+			.catch(e => done(e))
+	});
+	it(`# db0.get("Car/#/.makeAndModel()").all()`,function(done) {
+		const test  = eval("()=>"+this.test.title.substring(1));
+		test().then(result => {
+				expect(result[0]).to.equal("Audi:A4");
 				this.test.title += " = " + JSON.stringify(result);
 				done(); 
 				benchmark({name:this.test.title,fn:test});})
@@ -145,7 +182,7 @@ describe("Test",function () {
 				benchmark({name:this.test.title,fn:test});})
 			.catch(e => done(e))
 	});
-	it(`# db0.get('*/age/(value) => value > 27').all()`,function (done) { 
+	it(`# db0.get('*/age/(value) => value > 27 || undefined').all()`,function (done) { 
 		const test  = eval("()=>"+this.test.title.substring(1));
 		test()
 			.then(result => {
@@ -379,7 +416,7 @@ describe("Test",function () {
 			});
 		}
 	}
-	it("speed test put",function (done) {
+	/*it("speed test put",function (done) {
 		let test  = () => db0.get().put({speed:1}).all();
 		const me = this;
 		test()
@@ -393,7 +430,7 @@ describe("Test",function () {
 				console.log((cycles/duration)*1000);
 				done();
 			})
-	});
+	});*/
 });
 /**
  *  These are all the events you can subscribe to:

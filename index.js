@@ -103,7 +103,7 @@ const compile = string => {
 				break;
 			}
 		}
-		return parts.length==2 && /^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i.test(parts[1]) && /^[$A-Z_][0-9A-Z_$]*$/i.test(parts[0]);
+		return (parts.length==2 && /^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(parts[1]) && /^[$A-Z_][0-9A-Z_$]*$/i.test(parts[0]) ? parts : undefined);
 	}
 	toValue = value => {
 		if(typeof(value)==="string") {
@@ -542,7 +542,13 @@ class Database {
 	constructor(storage,options) {
 		class Graph {
 			constructor(path="",value,put) {
-				const key = typeof(path)==="string" ? path : path.join("/");
+				const key = typeof(path)==="string" ? path : path.join("/"),
+						parts = key.split("/"),
+						idparts = parseId(parts.pop());
+				if(idparts) {
+					let [classname,id] = idparts;
+					if(classname==="Date") value = new Date(parseInt(id));
+				}
 				this.key = key; // use to load from a key value store as prefix
 				this.edges = {};
 				this.onput = {};
@@ -550,11 +556,24 @@ class Database {
 				this.ondelete = {};
 				if(value!==undefined) this.value = value;
 				const loaded = new Promise(async resolve => {
+					if(idparts && idparts[0]==="Date") {
+						resolve();
+						return;
+					}
 					const item = await storage.getItem(this.key),
 						create = (!item ? true : false);
 					if(item) Object.assign(this,JSON.parse(item));
 					const action = this.value===undefined ? "created" : "updated";
 					if(value!==undefined) this.value = value;
+					if(this.value && typeof(this.value)==="object") {
+						const classname = parseId(this.value["#"])[0];
+						if(classname) {
+							if(!Function("object","cls","return object instanceof cls")(this.value,database.constructors[classname])) {
+								this.value = Object.assign(Object.create(database.constructors[classname].prototype),this.value);
+								this.value.constructor = database.constructors[classname];
+							}
+						}
+					}
 					if(put || create) {
 						if(!this["^"]) {
 							this["^"] = {created:Date.now()};
@@ -563,10 +582,9 @@ class Database {
 						}
 						if(typeof(put)==="number") this["^"].expiration = put;
 						await storage.setItem(key,JSON.stringify(this));
-						const path = this.key.split("/");
-						path.shift(); // remove root;
-						path.pop(); // remove self
-						path.pop(); // remove parent
+						parts.shift(); // remove root;
+						parts.pop(); // remove self
+						parts.pop(); // remove parent
 						const gparent = database.getEdge(path);
 						if(gparent) {
 							for(let fstr in gparent.onput) {
@@ -584,18 +602,32 @@ class Database {
 				});
 				Object.defineProperty(this,"loaded",{enumerable:false,configurable:false,writable:true,value:loaded});
 			}
-			async atomize(object,idGenerator=(object) => `${object.constructor.name}@${uuidv4()}`,atoms=[]) { // move to db
-				let id = object["#"];
+			async atomize(object,idGenerator= object => object instanceof Date ? `Date@${object.getTime()}` : `${object.constructor.name}@${uuidv4()}`) { // move to db
+				let	atoms = [],
+					id = object["#"];
 				if(!id) id = object["#"] = idGenerator(object);
-				const classname = object.constructor.name;
+				const ctor = object.constructor,
+					classname = ctor.name;
+				if(!database.constructors[classname]) database.constructors[classname] = ctor===Date ? (...args) => new Date(...args) : ctor;
+				if(object instanceof Date) {
+					atoms.push([ctor,id,"month",object.getUTCMonth()]);
+					atoms.push([ctor,id,"date",object.getUTCDate()]);
+					atoms.push([ctor,id,"day",object.getUTCDay()]);
+					atoms.push([ctor,id,"hours",object.getUTCHours()]);
+					atoms.push([ctor,id,"minutes",object.getUTCMinutes()]);
+					atoms.push([ctor,id,"seconds",object.getUTCSeconds()]);
+					atoms.push([ctor,id,"milliseconds",object.getUTCMilliseconds()])
+					atoms.push([ctor,id,"year",object.getUTCFullYear()]);
+				}
 				for(let key in object) {
 					let value = object[key],
 						type = typeof(value);
 					if(value && type==="object") {
-						await this.atomize(value,idGenerator,atoms);
-						atoms.push([classname,id,key,value["#"]]);
+						const children = await this.atomize(value,idGenerator);
+						atoms = atoms.concat(children);
+						atoms.push([value.constructor,"..",value["#"],id]);
 					} else if(type!=="undefined"){
-						atoms.push([classname,id,key,value]);
+						atoms.push([ctor,id,key,value]);
 					}
 				}
 				return atoms;
@@ -632,7 +664,7 @@ class Database {
 				await this.loaded;
 				const sets = [],
 					atoms = await this.atomize(pattern,() => "*");
-				for(let [classname,id,key,value] of atoms) {
+				for(let [classname,id,key,value,parentid] of atoms) {
 					const set = [],
 						generator = this.get([classname,key,(value==="*" ? value : toEdgeValue(value)),id],true);
 					for await (let edge of generator) set.push(edge.key.split("/").pop())
@@ -657,7 +689,6 @@ class Database {
 				if(database.options.inline) parts = compilePath(parts);
 				let edge;
 				if(parts.length===0) {
-					//yield this;
 						if(edgeOnly) {
 							yield this
 						}
@@ -669,36 +700,74 @@ class Database {
 					let key = parts.shift();
 					const type = typeof(key);
 					if(type==="string") {
-						if(key[0]===".") {
+						if(key==="..") {
+							for(let id in this.edges) {
+								let edge = this.edges[id];
+								if(!edge || !edge.loaded) {
+									const classname = parseId(id)[0];
+									edge = this.edges[id] = new Graph(`${database.data.key}/${classname}/${id}`);
+								}
+								await edge.loaded;
+								yield edge.value;
+							}
+							return;
+						} else if(key[0]===".") {
 							let property = key.substring(1),
 								testvalue;
 							if(key.indexOf("(")>=0) {
 								property = key.substring(1,key.indexOf("("));
 								testvalue = toValue(key.substring(key.indexOf("(")+1,key.indexOf(")")));
-								if(database.options.inline) {
+								testvalue = (testvalue==="" ? undefined : testvalue);
+								if(testvalue!==undefined && database.options.inline) {
 									testvalue = compileInlineArg(testvalue);
 								}
 							}
-							for(let value in this.edges) {
-								if(parseId(value)) {
-									for await (let scope of await database.getObject(value)) {
-										if(scope) {
+							const parts = this.key.split("/");
+							parts.shift();
+							parts.pop();
+							const edge = database.getEdge(parts);
+							let idparts;
+							for(let value in edge.edges) {
+								if(value.indexOf("Date@")===0) {
+									const scope = new Date(parseInt(value.split("@")[1])),
+										test = scope[property];
+									if(typeof(test)==="function") {
+										const result = testvalue===undefined ? test.call(scope) : test.call(scope,testvalue);
+										yield this.match(parts.slice(1),result);
+									} else if(test!==undefined){
+										yield this.match(parts.slice(1),test);
+									}
+								} else if((idparts=parseId(value))) {
+									const classname = idparts[0];
+									if(database.data.edges[classname]) {
+										let edge = database.data.edges[classname].edges[value];
+										if(!edge || !edge.loaded) {
+											edge = this.edges[value] = new Graph(`${database.data.key}/${classname}/${value}`);
+										}
+										await edge.loaded;
+										const scope = edge.value;
+										if(scope!=null) {
 											const test = scope[property];
-											if(typeof(test)==="function" && typeof(testvalue)!=="undefined") {
-												if(test.call(scope,testvalue) && this.match(parts.slice(),scope)) yield scope;
-											} else if(test && this.match(parts.slice(),scope)) {
-												yield scope;
+											if(typeof(test)==="function") {
+												const result = testvalue===undefined ? test.call(scope) : test.call(scope,testvalue);
+												yield this.match(parts.slice(1),result);
+											} else if(test!==undefined){
+												yield this.match(parts.slice(1),test);
 											}
 										}
 									}
 								} else {
-									const scope = toValue(value),
-										test = scope[property];
-									if(typeof(test)==="function" && typeof(testvalue)!=="undefined") {
-										if(test.call(scope,testvalue)) yield scope;
-									} else if(test) {
-										yield scope;
+									const scope = toValue(value);
+									if(scope!=null) {
+										const test = scope[property];
+										if(typeof(test)==="function") {
+											const result = testvalue===undefined ? test() : test(testvalue);
+											yield this.match(parts.slice(1),result);
+										} else if(test!==undefined){
+											yield this.match(parts.slice(1),test);
+										}
 									}
+									
 								}
 							}
 							return;
@@ -713,10 +782,7 @@ class Database {
 									if(test(testvalue)(totest)) {
 										if(!this.edges[value].loaded) {
 											this.edges[value] = new Graph(`${this.key}/${value}`,toValue(value),put);
-											//if(create) await this.save();
 										}
-									//	if(parts.length===0) yield totest;
-										//else  yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly);
 										 yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly);
 									}
 								}
@@ -733,14 +799,10 @@ class Database {
 									if(!this.edges[value].loaded) {
 										this.edges[value] = new Graph(`${this.key}/${value}`,toValue(value),put);
 										await this.edges[value].loaded;
-										//if(create && !put) await this.save();
 									}
-								//	if(parts.length===0) yield totest;
-								//	else yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly);
 									yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly);
 								}
 							}
-						//	return;
 						} catch(e) {
 							true;
 						}
@@ -751,8 +813,6 @@ class Database {
 								await this.edges[value].loaded;
 								if(create && !put) await this.save();
 							}
-							//if(parts.length===0) yield (parseId(value) ? await database.getObject(value) : toValue(value));
-							//else yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly);
 							yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly);
 						}
 					} else {
@@ -761,19 +821,14 @@ class Database {
 						if(!edge || !edge.loaded) {
 							edge = this.edges[key]  = new Graph(`${this.key}/${key}`,toValue(key),put);
 							await this.edges[key].loaded;
-							//if(create && !put) await this.save();
 						}
 						let keyparts;
 						if((keyparts=parseId(key))) {
 							const classname = keyparts[0];
 							edge = edge.edges[key] = database.data.edges[classname].edges[key];
 							if(!edge) {
-								//if(!create) return;
 								edge = edge.edges[key] = database.data.edges[classname].edges[key] = database.data.edges[key] = new Graph(`${database.data.key}/${key}`,toValue(key),put);
 								await edge.loaded;
-								//if(create && !put) await this.save();
-							//	await edge.loaded;
-								//await edge.save();
 							}
 							await edge.loaded;
 							edge.value || (edge.value = {});
@@ -781,16 +836,6 @@ class Database {
 							return;
 						}
 						if(edge) {
-							/*if(parts.length===0) {
-								if(edgeOnly) {
-									yield edge
-								}
-								else {
-									const value = edge.value;
-									yield (parseId(value) ? await database.getObject(value) : toValue(value));
-								}
-							}
-							else yield* await edge.get(parts,create,put,edgeOnly);*/
 							yield* await edge.get(parts.slice(),create,put,edgeOnly);
 						}
 					}
@@ -807,9 +852,9 @@ class Database {
 					key;
 				while((key = path.shift())) {
 					const value = toValue(path.shift());
-					if(typeof(value)==="undefined") return node;
+					if(value===undefined) return node;
 					if(node[key]!==value) return; // add function testing
-					if(typeof(node[key])==="undefined") {
+					if(node[key]===undefined) {
 						if(!create) return;
 						node[key] = {};
 					}
@@ -911,32 +956,44 @@ class Database {
 				const type = typeof(data);
 				if(data && type==="object") {
 					const atoms = await this.atomize(data),
-						classname = data.constructor.name,
-						saved = {};
-					if(!database.constructors[classname]) database.constructors[classname] = data.constructor;
-					for(let [classname,id,key,value] of atoms) {
+						//ctor = data.constructor===Date ? (...args) => new Date(...args) : data.constructor,
+						//classname = ctor.name,
+						tosave = {};
+					//if(!database.constructors[classname]) database.constructors[classname] = ctor;
+					for(let [ctor,id,key,value] of atoms) {
+						const classname = ctor.name;
 						let edge = database.data.edges[classname];
-						if(!edge || !edge.loaded) edge = database.data.edges[classname] = new Graph(`${database.data.key}/${classname}`,data.constructor,duration||true);
-						else saved[`${database.data.key}/${classname}`] = true;
+						if(!edge || !edge.loaded) edge = database.data.edges[classname] = new Graph(`${database.data.key}/${classname}`,ctor===Date ? (...args) => new Date(...args) : ctor,true);
 						await edge.loaded;
-						database.data.edges[classname].edges[id] = new Graph(`${database.data.key}/${classname}/${id}`,data,duration||true);
-						saved[`${database.data.key}/${classname}/${id}`] = true;
-						if(!edge.edges[key] || !edge.edges[key].loaded) edge.edges[key] = new Graph(`${edge.key}/${key}`,key,duration||true);
-						else saved[`${edge.key}/${key}`] = true;
-						await edge.edges[key].loaded;
-						const evalue = toEdgeValue(value);
-						if(!edge.edges[key].edges[evalue] || !edge.edges[key].edges[evalue].loaded) edge.edges[key].edges[evalue] = new Graph(`${database.data.key}/${classname}/${key}/${evalue}`,value,duration||true);
-						else saved[`${database.data.key}/${classname}/${key}/${evalue}`] = true;
-						await edge.edges[key].edges[evalue].loaded;
-						if(!edge.edges[key].edges[evalue].edges[id]) edge.edges[key].edges[evalue].edges[id] = database.data.edges[classname].edges[id];
+						if(id!=="..") {
+							tosave[classname] = true;
+							database.data.edges[classname].edges[id] = new Graph(`${database.data.key}/${classname}/${id}`,data,duration||true);
+							edge = edge.edges[key];
+							if(!edge || !edge.loaded) {
+								tosave[classname] = true;
+								edge = database.data.edges[classname].edges[key] = new Graph(`${database.data.key}/${classname}/${key}`,key,true);
+							}
+							await edge.loaded;
+							const evalue = key==="#" ? value : toEdgeValue(value);
+							edge = edge.edges[evalue];
+							if(!edge || !edge.loaded) {
+								edge = database.data.edges[classname].edges[key].edges[evalue] = new Graph(`${database.data.key}/${classname}/${key}/${evalue}`,value,duration||true);
+								await database.data.edges[classname].edges[key].save();
+							}
+							await edge.loaded;
+							if(key==="#") {
+								
+							}
+							edge.edges[id] = database.data.edges[classname].edges[id];
+							await edge.save();
+						} else {
+							const parentclass = parseId(value)[0];
+							database.data.edges[classname].edges[key].edges[value] = database.data.edges[parentclass].edges[value];
+							await database.data.edges[classname].edges[key].save();
+						}
 					}
-					for(let [classname,id,key,value] of atoms) {
-						let edge = database.data.edges[classname];
-						if(!saved[edge.key]) {  await edge.save(); saved[edge.key] = true; }
-						if(!saved[database.data.edges[classname].edges[id].key]) {  await database.data.edges[classname].edges[id].save(); saved[database.data.edges[classname].edges[id].key] = true; }
-						if(!saved[edge.edges[key].key]) {  await edge.edges[key].save(); saved[edge.edges[key].key] = true; }
-						const evalue = toEdgeValue(value);
-						if(!saved[edge.edges[key].edges[evalue].key]) {  await edge.edges[key].edges[evalue].save(); saved[edge.edges[key].edges[evalue].key] = true; }	
+					for(let classname in tosave) {
+						await database.data.edges[classname].save();
 					}
 				} else {
 					this.value = data;

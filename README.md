@@ -21,7 +21,10 @@ It is in an early ALPHA and currently supports:
 	
 	d) with wild cards, e.g. `get("*/email/*")`, will retrieve all objects that have an email property.
 	
-	e) with inline functions, e.g. `get("Person/age/(value) => value>27")` also retrieves all Persons over 27, although more slowly
+	e) with inline functions, e.g. `get("Person/age/(value) => value>27 || undefined")` also retrieves all Persons over 27, although more slowly
+	
+	f) with object methods, e.g. `get("Car/#/.makeAndModel()) will return all makeAndModel strings for all Cars.
+
 	
 2) Object retrieval based on patterns:
 
@@ -123,7 +126,7 @@ Object/address/city/"Bainbridge Island"
 Object/address/zipcode/base/98110
 ```
 
-Any location in the path can also be the * wildcard, a compiled inline test, or a dynamic inline test, e.g.
+Any location in the path can also be the * wildcard, a compiled inline test, a dynamic inline test, e.g.
 
 
 `Object/address/city/*` - matches any Object with an address and a city property and returns the Object
@@ -143,8 +146,11 @@ Any location in the path can also be the * wildcard, a compiled inline test, or 
 
 `*/#/(value) => ... some code` - the equivalent of a table scan across instances of all classes, returns all objects satisfying the inline
 
-Dynamic in-line tests expose the code to injection risk and must be enabled by setting `inline` to true in the options object when a database connection is created. Any in-line test can be added as compiled tests to avoid this issue. See Extending AnyWhichWay.
+Tertiary nodes after the "#" selector can be property names or method calls, e.g.
 
+`Car/#/model` - gets all model names for all Cars doing a table scan, `Car/model` is faster.
+
+`Car/#/.makeAndModel()` - However, method names can only be invoked as a result of a table scan.
 
 Data can be retrieved using a graph path, e.g.:
 
@@ -158,7 +164,12 @@ Paths can also be handed in as arrays, e.g.:
 get(["Object","address","city","*").all();
 ```
 
-Note: Dynamic in-line tests MUST use parentheses around agruments, even if there is just one.
+## Notes
+
+Dynamic in-line tests MUST use parentheses around agruments, even if there is just one.
+
+Dynamic in-line tests expose the code to injection risk and must be enabled by setting `inline` to true in the options object when a database connection is created. 
+Any in-line test can be added as compiled tests to avoid this issue. See Extending AnyWhichWay.
 
 # Query Patterns
 
