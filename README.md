@@ -300,6 +300,6 @@ used for reference only. Attempts to change it will result in an error.
 
 # Release History (reverse chornological order)
 
-2018-03-07 - Enhanced documentation, pattern matching, joins, and unit tests
+2018-03-07 - Enhanced documentation, pattern matching, joins, and unit tests.
 
-2018-03-04 - Publication of major re-write and release track ALPHA
+2018-03-04 - Publication of major re-write and release track ALPHA.
