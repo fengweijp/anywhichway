@@ -3,8 +3,8 @@
 //soundex from https://gist.github.com/shawndumas/1262659
 const soundex = (a) => {a=(a+"").toLowerCase().split("");var c=a.shift(),b="",d={a:"",e:"",i:"",o:"",u:"",b:1,f:1,p:1,v:1,c:2,g:2,j:2,k:2,q:2,s:2,x:2,z:2,d:3,t:3,l:4,m:5,n:5,r:6},b=c+a.map(function(a){return d[a]}).filter(function(a,b,e){return 0===b?a!==d[c]:a!==e[b-1]}).join("");return(b+"000").slice(0,4).toUpperCase()};
 
-// from https://gist.github.com/lovasoa/3361645
-function intersection(){var a,b,c,d,e,f,g=[],h={},i;i=arguments.length-1;d=arguments[0].length;c=0;for(a=0;a<=i;a++){e=arguments[a].length;if(e<d){c=a;d=e}}for(a=0;a<=i;a++){e=a===c?0:a||c;f=arguments[e].length;for(var j=0;j<f;j++){var k=arguments[e][j];if(h[k]===a-1){if(a===i){g.push(k);h[k]=0}else{h[k]=a}}else if(a===0){h[k]=0}}}return g}
+// from https://gist.github.com/lovasoa/3361645 + length==1 mod by AnyWhichWay
+function intersection(){if(arguments.length===1) return arguments[0]; var a,b,c,d,e,f,g=[],h={},i;i=arguments.length-1;d=arguments[0].length;c=0;for(a=0;a<=i;a++){e=arguments[a].length;if(e<d){c=a;d=e}}for(a=0;a<=i;a++){e=a===c?0:a||c;f=arguments[e].length;for(var j=0;j<f;j++){var k=arguments[e][j];if(h[k]===a-1){if(a===i){g.push(k);h[k]=0}else{h[k]=a}}else if(a===0){h[k]=0}}}return g}
 
 
 //https://stackoverflow.com/questions/105034/create-guid-uuid-in-javascript
@@ -93,6 +93,18 @@ const compile = string => {
 	  }
 	  return false;
 	},
+	normalizePathOrPattern = (pathOrPattern,getIds) => {
+		if(typeof(pathOrPattern)==="string") {
+			const path = pathOrPattern.split("/");
+			if(path.length===1) {
+				path.push("#");
+				path.push("*");
+			}
+			if(!getIds) path.push("*");
+			return path;
+		}
+		return pathOrPattern;
+	} 
 	parseId = string => {
 		const parts = [];
 		if(typeof(string)!=="string") return;
@@ -119,30 +131,6 @@ const compile = string => {
 	toEdgeValue = value => (typeof(value)==="string" && !parseId(value) && value!=="*") ? JSON.stringify(value) : value;
 
 
-// based on http://phrogz.net/lazy-cartesian-product
-async function lazyProduct(sets,f,context){
-  if (!context) context=this;
-  let p=[],max=sets.length-1,lens=[];
-  for(let i=sets.length;i--;) lens[i]=sets[i].length;
-  async function dive(d){
-    var a=sets[d], len=lens[d];
-    if (d==max) {
-    	for (let i=0;i<len;++i) {
-    		p[d]=a[i];
-    		await f.call(context,p.slice());
-    	}
-    }
-    else {
-    	for (let i=0;i<len;++i) {
-    		p[d]=a[i];
-    		await dive(d+1);
-    	}
-    }
-    p.pop();
-  }
-  await dive(0);
-}
-
 function AsyncLocalStorage(localStorage) {
 	for(let key in Object.getPrototypeOf(localStorage)) this[key] = async function(...args) { return localStorage[key](...args); }
 	this.set = this.setItem;
@@ -151,17 +139,11 @@ function AsyncLocalStorage(localStorage) {
 	return this;
 }
 
-function* cartesian(head, ...tail) {
+async function* cartesian(head, ...tail) {
   const remaining = tail.length > 0 ? cartesian(...tail) : [[]];
-  for (let r of remaining) for (let h of head) { const result = [h, ...r]; if(!result.includes(undefined)) yield result; };
+  for await (let r of remaining) { for await (let h of head) { const result = [h, ...r]; if(!result.includes(undefined)) yield result; } };
 }
 
-/*
- async function* cartesian(head, ...tail) {
-	  const remaining = tail.length > 0 ? cartesian(...tail) : [[]];
-	  for await (let r of remaining) for (let h of head) { const result = [h, ...r]; if(!result.includes(undefined)) yield result; };
-	}
-*/
 
 async function* pipe(functions,arg=null,recursing) {
 	if(!pipe.recursing) pipe.END = false;
@@ -267,21 +249,21 @@ class Query {
 		this.command.push(data => { f(data); return data;} );
 		return this;
 	}
-	get(...pathsOrPatterns) {
+	get(pathOrPattern) {
 		const edge = this.database.data;
+		this.command.push(async function*() { for await (let next of edge.get(normalizePathOrPattern(pathOrPattern))) yield next; });
+		return this;
+	}
+	join(...pathsOrPatternsAndTest) {
+		const database = this.database,
+			edge = this.database.data,
+			test = pathsOrPatternsAndTest.pop(),
+			pathsOrPatterns = pathsOrPatternsAndTest.map(pathOrPattern => normalizePathOrPattern(pathOrPattern)),
+			generators = []; // need to hanmdle short path! see above get
 		for(let pathOrPattern of pathsOrPatterns) {
-			const parts = Array.isArray(pathOrPattern) ? pathOrPattern : typeof(pathOrPattern)==="string" ? pathOrPattern.split("/") : null;
-			if(parts) {
-				if(parts.length===1) {
-					parts.push("#");
-					parts.push("*");
-				}
-				parts.push("*");
-				this.command.push(async function*() { for await (let next of edge.get(parts)) yield next; });
-			} else {
-				this.command.push(async function*() { for await (let next of edge.get(pathOrPattern)) yield next; });
-			}
+			generators.push(async function*() { for await (let next of edge.get(pathOrPattern)) yield next; }());
 		}
+		this.command.push(async function*() { for await (let next of cartesian.apply(null,generators)) if(test(next)) yield next; });
 		return this;
 	}
 	keys() {
@@ -368,9 +350,11 @@ class Query {
 		this.command.push(async function*(edge) { for(let item of data) { (edge||root).put(item,duration); yield item; }});
 		return this;
 	}
-	random(pct) {
+	random(portion) {
 		let last;
-		// seet last every time random runs, have random return 0 - 9, every time it returns 0, pass the record on
+		this.command.push(function(data) {
+			if(Math.random()<=portion) return data;
+		});
 		return this;
 	}
 	reduce(f,initial) {
@@ -504,12 +488,6 @@ class Query {
 		return this;
 	}
 	unshift(value) {
-		/*this.collect();
-		this.command.push(function*(data) { 
-			data.unshift(value);
-			for(let item of data) yield item;
-		});
-		return this;*/
 		this.command.push(function* f(data) { 
 			if(!f.once) { f.once = true; yield value; }
 			yield data;
@@ -660,18 +638,22 @@ class Database {
 				}
 				return json;
 			}
-			async* find(pattern) {
+			async* find(pattern,all) {
 				await this.loaded;
 				const sets = [],
 					atoms = await this.atomize(pattern,() => "*");
-				for(let [classname,id,key,value,parentid] of atoms) {
+				for(let [ctor,id,key,value] of atoms) {
+					if(!all && key==="#" && value==="*") continue; //avoid matching all objects!
 					const set = [],
-						generator = this.get([classname,key,(value==="*" ? value : toEdgeValue(value)),id],true);
+						generator = this.get([ctor.name,key,(value==="*" ? value : toEdgeValue(value)),id],false,false,true);
 					for await (let edge of generator) set.push(edge.key.split("/").pop())
 					sets.push(set);
 				}
 				const results = intersection(...sets);
-				for(let id of results) yield id;
+				for(let id of results) {
+					const [classname,uuid] = parseId(id);
+					yield database.data.edges[classname].edges[id].value;
+				}
 				return;
 			}
 			async* get(pathOrPattern="",create,put,edgeOnly) { // change to path or pattern, call find for pattern
@@ -795,7 +777,7 @@ class Database {
 							const test = key;
 							for(let value in this.edges) {
 								let totest = (parseId(value) ? await database.getObject(value) : toValue(value));
-								if(test(totest)) {
+								if(test(totest)!==undefined) {
 									if(!this.edges[value].loaded) {
 										this.edges[value] = new Graph(`${this.key}/${value}`,toValue(value),put);
 										await this.edges[value].loaded;
@@ -1061,7 +1043,6 @@ class Database {
 				for await (let edge of database.data.get(pathOrPattern,false)) {
 					if(edge.edges[id]) {
 						delete edge.edges[id];
-						
 						await edge.save();
 					}
 				}
@@ -1096,6 +1077,7 @@ class Database {
 				return this;
 			}
 		}
+		
 		if(!storage.setItem) storage.setItem = storage.set;
 		if(!storage.getItem) storage.getItem = storage.get;
 		if(!storage.removeItem) storage.removeItem = storage.del || storage.remove || storage.delete;
@@ -1142,8 +1124,11 @@ class Database {
 			return;
 		}
 	}
-	get(...pathsOrPatterns)  {
-		return new Query(this).get(...pathsOrPatterns);
+	get(pathOrPattern,ctor)  {
+		if(ctor) {
+			pathOrPattern = Object.assign(Object.create(ctor.prototype),pathOrPattern);
+		}
+		return new Query(this).get(pathOrPattern);
 	}
 	getEdge(path,root="data") {
 		const parts = Array.isArray(path) ? path.slice() : path.split("/");
@@ -1158,9 +1143,12 @@ class Database {
 		if(!edge) return;
 		let value = edge.value;
 		if(!value) return;
-		const ctor = this.constructors[classname] || compile(this.data.edges[classname].value) || Object,
-			returnValue = (value ? Object.assign(Object.create(ctor.prototype),value) : value),
-			storedValue = (value ? Object.assign(Object.create(ctor.prototype),value) : value);
+		const ctor = this.constructors[classname] || compile(this.data.edges[classname].value) || Object;
+		if(value.constructor!==ctor) {
+			egde.value = Object.assign(Object.create(ctor.prototype),value);
+		}
+		const returnValue = (value ? Object.assign(Object.create(ctor.prototype),value) : value),
+		storedValue = (value ? Object.assign(Object.create(ctor.prototype),value) : value);
 		returnValue.constructor = ctor;
 		storedValue.constructor = ctor;
 		Object.freeze(storedValue);
@@ -1187,29 +1175,22 @@ class Database {
 						const f = compile(kedge.value);
 						if(!f("get",returnValue,storedValue,key)) return;
 					}
-				/*	for(let value in kedge.edges) {
-						const vedge = edge.edges[value];
-						value = toValue(value.substring(1)); // remove slash
-						if(value==="*") {
-							const f = compile(vedge.value);
-							for(let key in returnValue) {
-								if(!f("get",returnValue,storedValue,key)) return;
-							}
-						} else if(returnValue[key]===value) {
-							const f = compile(vedge.value);
-							if(!f("get",returnValue,storedValue,key)) return;
-						}
-					}*/
 				}
 			}
 		}
 		return returnValue;
+	}
+	join(...pathsOrPatternAndTest)  {
+		return new Query(this).join(...pathsOrPatternAndTest);
 	}
 	patch(data,object)  {
 		return async function* (...args)  { 
 			yield args; 
 			return;
 		}
+	}
+	provide(...values)  {
+		return new Query(this).provide(...values);
 	}
 	put(...data)  {
 		return new Query().get().put(...data);
@@ -1273,6 +1254,7 @@ class Database {
 	}
 }
 
+window.Query = Query
 if(typeof(module)!=="undefined") module.exports = Database;
 if(typeof(window)!=="undefined") window.Database = Database;
 

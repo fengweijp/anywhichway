@@ -17,11 +17,11 @@ It is in an early ALPHA and currently supports:
 	
 	b) with inline tests, e.g. `get("Person/age/gt(27)")` retrieves all Persons over 27.
 	
-	c) with property value retrieval, e.g. `get("Person/age")` will return all the possible ages for Persons directly off the index.
+	c) with property existing value retrieval, e.g. `get("Person/age")` will return all the possible ages for Persons.
 	
-	d) with wild cards, e.g. `get("*/email/*")`, will retrieve all objects that have an email property.
+	d) with wild cards, e.g. `get("*/email/*")`, will retrieve all objects that have an email property, not just Persons.
 	
-	e) with inline functions, e.g. `get("Person/age/(value) => value>27 || undefined")` also retrieves all Persons over 27, although more slowly
+	e) with inline functions, e.g. `get("Person/age/(value) => (value > 27 ? value : undefined")` also retrieves all Persons over 27, although more slowly
 	
 	f) with object methods, e.g. `get("Car/#/.makeAndModel()) will return all makeAndModel strings for all Cars.
 
@@ -30,13 +30,15 @@ It is in an early ALPHA and currently supports:
 
 	a) with exact matching, e.g. `get({email:"jsmith@somewhere.com"},Person)` retrieves the Person with the provided e-mail.
 	
-	b) with tests, e.g. `get({age:value => value>27,name:"Joe"},Person)` retrieves all Persons over 27 with name "Joe".
+	b) with tests, e.g. `get({age:value => value > 27 ? value : undefined,name:"Joe"},Person)` retrieves all Persons over 27 with name "Joe".
 	
 	c) with coerced classes, e.g. `get({email:"jsmith@somewhere.com", instanceof:"Person"})` retrieves the Person with the provided e-mail.
 	
 3) Object joins:
 
-	a) e.g. `get({instanceOf:Guest},{instanceOf:Guest}).join((guest1,guest2) => guest1.id!=guest2.id)` retrieves all possible Guest pairs
+	a) e.g. `join({instanceOf:Guest},{instanceOf:Guest},([guest1,guest2]) => guest1["#"]!=guest2["#"] ? [guest1,guest2] : false)` retrieves all possible Guest pairs
+	
+	b) e.g. `join("Object/age/*","Object/age/*",([a,b]) => a.age && b.age && a.age!==b.age ? [a,b] : false)` retrieves all pairs of differntly aged Objects
 	
 4) "Smart" serialization. The database "learns" about new classes as they are inserted and restores data into appropriate class instances.
 	
@@ -58,7 +60,7 @@ It is in an early ALPHA and currently supports:
 
 
 The internals of AnyWhichWay are based on asychronous generators to ensure non-blocking return of results as fast as possible. For example, the join command above yields 
-one pair at a time rather than assembling all possible pairs before returning like one must do with a SQL store or even with many No-SQL databases that don't support streaming result sets.
+one tuple at a time rather than assembling all possible tuples before returning like one must do with an SQL store or even with many No-SQL databases that don't support streaming result sets.
 
 
 # Installation
@@ -69,11 +71,11 @@ AnyWhichWay will run in current versions of Chrome and Firefox.
 
 Node v9.7.1 (the most recent at this writing) must be run with the `--harmony` flag. 
 
-Babel transpiled code will not work. It does not seem to generate correct asynchronous generators.
+Babel transpiled code will not work. Babel does not seem to generate correct asynchronous generators.
 
 # Doumentation Notes
 
-When "Object" is capitalized it refers to a direct instance of the class Object. When "object" is lower case it refers to an instance of any type of class except Array, which will use the term "array".
+When "Object" is capitalized it refers to a direct instance of the class Object. When "object" is lower case it refers to an instance of any type of class except Array, which uses the term "array".
 
 The property "#" is the default used for unique uuidv4 ids on objects in AnyWhichWay. See the section Metadata for more info.
 
@@ -135,7 +137,7 @@ Any location in the path can also be the * wildcard, a compiled inline test, a d
 
 `Object/address/state/in(["WA","OR"])` - return all objects with addresses in WA or OR
 
-`Object/address/zipcode/base/(value) => value>=98100 && value<=98199` - return all Objects with an address in the zipcode base range of 98100 to 98199
+`Object/address/zipcode/base/(value) => (value>=98100 && value<=98199 ? value : undefined)` - return all Objects with an address in the zipcode base range of 98100 to 98199
 
 `Object/address/zipcode/base/between(98100,98199,true)` - alternate way to achieve the above with a compiled inline
 
@@ -171,7 +173,91 @@ Dynamic in-line tests MUST use parentheses around agruments, even if there is ju
 Dynamic in-line tests expose the code to injection risk and must be enabled by setting `inline` to true in the options object when a database connection is created. 
 Any in-line test can be added as compiled tests to avoid this issue. See Extending AnyWhichWay.
 
+# Queries
+
+Queries are effectively a series of pipes that change the nature of the results or produce other side-effects.
+
+async all() {
+
+	concat
+	collect() {
+
+	every(f) {
+
+	filter(f) {
+		
+	first(n=1) {
+		
+	forEach(f) {
+		
+	get(...pathsOrPatterns) {
+	
+	join(...pathsOrPatterns,test)
+	
+	keys() {
+	
+	last(n=1) {
+	
+	map(f) {
+
+	mapReduce(map,reduce) {
+
+	merge(query,where) {
+
+	pop() {
+	
+	provide(...values) {
+	
+	push(value) {
+
+	put(...data) {
+
+	random(pct) {
+	
+	reduce(f,initial) {
+
+	reduceRight(f,initial) {
+
+	reset() {
+
+	reverse() {
+
+	secure(path,security) {
+
+	seen(f,first) {
+
+	slice(begin,end) {
+
+	shift() {
+
+	some(f) {
+
+	sort(f) {
+
+	splice(start,deleteCount,...items) {
+
+
+gt
+VM28835:1 gte
+VM28835:1 eq
+VM28835:1 between
+VM28835:1 outside
+VM28835:1 eeq
+VM28835:1 echoes
+VM28835:1 matches
+VM28835:1 contains
+VM28835:1 neq
+VM28835:1 lte
+VM28835:1 lt
+VM28835:1 in
+VM28835:1 nin
+VM28835:1 not
+
 # Query Patterns
+
+Query patterns are objects. If the query pattern is an instance of a specific kind of object, then only those kinds of objects will be matched.
+
+Property values in query patterns may be literals or functions that return the value being tested or 'undefined' if they should fail. This behavior may change to a boolean with a BETA release.
 
 
 # Metadata
@@ -213,5 +299,7 @@ used for reference only. Attempts to change it will result in an error.
 # Extending AnyWhichWay
 
 # Release History (reverse chornological order)
+
+2018-03-07 - Enhanced documentation, pattern matching, joins, and unit tests
 
 2018-03-04 - Publication of major re-write and release track ALPHA

@@ -171,18 +171,42 @@ describe("Test",function () {
 				this.test.title += " = " + JSON.stringify(result);
 				benchmark({name:this.test.title,fn:test});})
 			.catch(e => done(e))
-	}); 
+	});
 	it(`# db0.get('*/age/gt(27)').all()`,function (done) { 
 		const test  = eval("()=>"+this.test.title.substring(1));
 		test()
 			.then(result => { 
 				expect(result.length).to.equal(1); 
+				expect(result[0].age>27).to.equal(true); 
 				done();
 				this.test.title += " = " + JSON.stringify(result);
 				benchmark({name:this.test.title,fn:test});})
 			.catch(e => done(e))
 	});
-	it(`# db0.get('*/age/(value) => value > 27 || undefined').all()`,function (done) { 
+	it(`# db0.get({age:27,name:"Joe"}).all()`,function (done) { 
+		const test  = eval("()=>"+this.test.title.substring(1));
+		test()
+			.then(result => { 
+				expect(result.length).to.equal(1); 
+				expect(result[0].age).to.equal(27);
+				expect(result[0].name).to.equal("Joe");
+				done();
+				this.test.title += " = " + JSON.stringify(result);
+				benchmark({name:this.test.title,fn:test});})
+			.catch(e => done(e))
+	});
+	it(`# db0.get({age:(value) => value > 27 ? value : undefined}).all()`,function (done) { 
+		const test  = eval("()=>"+this.test.title.substring(1));
+		test()
+			.then(result => { 
+				expect(result.length).to.equal(1); 
+				expect(result[0].age>27).to.equal(true); 
+				done();
+				this.test.title += " = " + JSON.stringify(result);
+				benchmark({name:this.test.title,fn:test});})
+			.catch(e => done(e))
+	});
+	it(`# db0.get('*/age/(value) => value > 27 ? value : undefined').all()`,function (done) { 
 		const test  = eval("()=>"+this.test.title.substring(1));
 		test()
 			.then(result => {
@@ -293,69 +317,90 @@ describe("Test",function () {
 				benchmark({name:this.test.title,fn:test});})
 			.catch(e => done(e))
 	}); 
-	it(`provide 8 provide(1,2,3,3,4,5,6,6)`,function (done) { 
-		const test  = () => db0.get().provide(1,2,3,3,4,5,6,6).all();
+	it(` db0.provide(1,2,3,3,4,5,6,6).all()`,function (done) { 
+		const test =  eval("()=>"+this.test.title.substring(1));
 		test()
 			.then(result => {
-				expect(result.length).to.equal(8); 
+				expect(result.length).to.equal(8);
+				this.test.title += " = " + JSON.stringify(result);
 				done()}) 
 			.catch(e => done(e))
 	});
-	it(`provide 8 provide([1,2,3,3,4,5,6,6]).yield()`,function (done) { 
-		const test  = () => db0.get().provide([1,2,3,3,4,5,6,6]).yield().all();
+	it(` db0.provide([1,2,3,3,4,5,6,6]).yield().all()`,function (done) { 
+		const test =  eval("()=>"+this.test.title.substring(1));
 		test()
 			.then(result => {
 				expect(result.length).to.equal(8); 
+				this.test.title += " = " + JSON.stringify(result);
 				done()})
 			.catch(e => done(e))
 	});
-	it(`provide 6 unique provide(1,2,3,3,4,5,6,6).unique()`,function (done) { 
-		const test  = () => db0.get().provide(1,2,3,3,4,5,6,6).unique().all();
+	it(` db0.provide(1,2,3,3,4,5,6,6).unique().all()`,function (done) { 
+		const test = eval("()=>"+this.test.title.substring(1));
 		test()
 			.then(result => {
-				expect(result.length).to.equal(6); 
+				expect(result.length).to.equal(6);
+				this.test.title += " = " + JSON.stringify(result);
 				done()})
 			.catch(e => done(e))
 	});
-	it(`provide [1,2,3,3,4,5,6,6] provide(6,6,5,4,3,3,2,1).sort()`,function (done) { 
-		const test  = () => db0.get().provide(6,6,5,4,3,3,2,1).sort().all();
+	it(` db0.provide(6,6,5,4,3,3,2,1).sort().all()`,function (done) { 
+		const test = eval("()=>"+this.test.title.substring(1));
 		test()
 			.then(result => {
 				expect(result.length).to.equal(8);
 				expect(result[0]).to.equal(1);
 				expect(result[7]).to.equal(6);
+				this.test.title += " = " + JSON.stringify(result);
 				done()})
 			.catch(e => done(e))
 	});
-	it(`when side effect provide(1,2,3,3,4,5,6,6).when(value => value===5,() => passed = true)`,function (done) {
+	it(` db0.provide(1,2,3,3,4,5,6,6).when(value => value===5,() => passed = true).all()`,function (done) {
 		let passed;
-		const test  = () => db0.get().provide(1,2,3,3,4,5,6,6).when(value => value===5,() => passed = true).all();
+		const test  = () => db0.provide(1,2,3,3,4,5,6,6).when(value => value===5,() => passed = true).all();
 		test()
 			.then(result => {
 				expect(result.length).to.equal(8);
 				expect(passed).to.equal(true);
+				this.test.title += " = " + JSON.stringify(result);
 				done()})
 			.catch(e => done(e))
 	});
-	it(`values ["Joe",27] provide({name:Joe",age:27}).values()`,function (done) {
-		let passed;
-		const test  = () => db0.get().provide({name:"Joe",age:27}).values().all();
+	it(` will occassionaly fail since testing random! db0.get().provide(0,1,2,3,4,5,6,7,8,9.10,11,12,13,14,15,16,17,18,19).random(.5).all()`,function (done) {
+		const test = db0.provide(0,1,2,3,4,5,6,7,8,9.10,11,12,13,14,15,16,17,18,19).random(.5).all();
+		test.then(result => {
+				expect(result.length>=8 && result.length<=12).to.equal(true);
+				this.test.title += " = " + JSON.stringify(result);
+				done()})
+			.catch(e => done(e))
+	});
+	it(` db0.join("Object/age/*","Object/age/*",([a,b]) => a.age && b.age && a.age!==b.age ? [a,b] : undefined).all()`,function (done) {
+		const test = eval("()=>"+this.test.title.substring(1));
+		test().then(result => {
+				expect(result.length).to.equal(1);
+				this.test.title += " = " + JSON.stringify(result);
+				done()})
+			.catch(e => done(e))
+	});
+	it(` db0.provide({name:"Joe",age:27}).values().all()`,function (done) {
+		const test = eval("()=>"+this.test.title.substring(1));
 		test()
 			.then(result => {
 				expect(result.length).to.equal(2);
 				expect(result[0]).to.equal("Joe");
 				expect(result[1]).to.equal(27);
+				this.test.title += " = " + JSON.stringify(result);
 				done()})
 			.catch(e => done(e))
 	});
-	it(`keys ["name","age"] provide({name:Joe",age:27}).keys()`,function (done) {
-		let passed;
-		const test  = () => db0.get().provide({name:"Joe",age:27}).keys().all();
+	it(` db0.provide({name:"Joe",age:27}).keys().all()`,function (done) {
+		const test = eval("()=>"+this.test.title.substring(1));
 		test()
 			.then(result => {
 				expect(result.length).to.equal(2);
 				expect(result[0]).to.equal("name");
 				expect(result[1]).to.equal("age");
+				this.test.title += " = " + JSON.stringify(result);
 				done()})
 			.catch(e => done(e))
 	});
@@ -387,8 +432,10 @@ describe("Test",function () {
 				test()
 					.then(result => {
 						expect(result[0]).to.equal(value);
-						done()})
-				.catch(e => done(e))
+						this.test.title += " = " + JSON.stringify(result);
+						done();
+					})
+					.catch(e => done(e))
 			});
 		}
 	}
@@ -407,10 +454,11 @@ describe("Test",function () {
 			if(type==="string") nvalue = JSON.stringify(value)
 			else if(value && type==="object") nvalue = JSON.stringify(value);
 			it(`${fname} provide(${nvalue}).${fname}(${args.map(arg => typeof(arg)==="string" || (arg && typeof(arg)==="object") ? JSON.stringify(arg) : arg).join(",")})`,function (done) {
-				let test = () => db0.get().provide(value)[fname](...args).all();
+				let test = () => db0.provide(value)[fname](...args).all();
 				test()
 					.then(result => {
 						expect(result[0]).to.equal(value);
+						this.test.title += " = " + JSON.stringify(result);
 						done()})
 				.catch(e => done(e))
 			});
