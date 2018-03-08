@@ -24,7 +24,7 @@ const compile = string => {
 		if(!typeof(string)==="string") return string;
 		try {
 			const value = new Function("return " + string).call(null);
-			if(typeof(value)==="string" && value!==string) return string;
+			if(typeof(value)!=="function" && value!==string) return string;
 			return value;
 		} catch(err) {
 			return string;
@@ -47,45 +47,40 @@ const compile = string => {
 	deepEqual = (a, b, depth=Infinity) => {
 	  if (a === b) return true;
 
-	  var arrA = Array.isArray(a)
-	    , arrB = Array.isArray(b)
-	    , i
-	    , length
-	    , key;
+	  const arrA = Array.isArray(a),
+	    arrB = Array.isArray(b);
 
 	  if (arrA && arrB) {
-	    length = a.length;
-	    if (length != b.length) return false;
-	    for (i = 0; i < length; i++)
+	    if (a.length != b.length) return false;
+	    for (let i = 0; i < length; i++)
 	      if (!deepEqual(a[i], b[i],depth)) return false;
 	    return true;
 	  }
 
 	  if (arrA != arrB) return false;
 
-	  var dateA = a instanceof Date
-	    , dateB = b instanceof Date;
+	  const dateA = a instanceof Date,
+	    dateB = b instanceof Date;
 	  if (dateA != dateB) return false;
-	  if (dateA && dateB) return a.getTime() == b.getTime();
+	  if (dateA && dateB) return a.getTime() === b.getTime();
 
-	  var regexpA = a instanceof RegExp
-	    , regexpB = b instanceof RegExp;
+	  const regexpA = a instanceof RegExp,
+	    regexpB = b instanceof RegExp;
 	  if (regexpA != regexpB) return false;
-	  if (regexpA && regexpB) return a.toString() == b.toString();
+	  if (regexpA && regexpB) return a.toString() === b.toString();
 
 	  if (a instanceof Object && b instanceof Object) {
 	  	if(depth===0) return true;
-	    var keys = Object.keys(a);
-	    length = keys.length;
-
+	    const keys = Object.keys(a),
+	    	length = keys.length;
 	    if (length !== Object.keys(b).length)
 	      return false;
 
-	    for (i = 0; i < length; i++)
+	    for (let i = 0; i < length; i++)
 	      if (b[keys[i]]===undefined) return false;
 
-	    for (i = 0; i < length; i++) {
-	      key = keys[i];
+	    for (let i = 0; i < length; i++) {
+	      const key = keys[i];
 	      if (!deepEqual(a[key], b[key],--depth)) return false;
 	    }
 
@@ -104,7 +99,7 @@ const compile = string => {
 			return path;
 		}
 		return pathOrPattern;
-	} 
+	},
 	parseId = string => {
 		const parts = [];
 		if(typeof(string)!=="string") return;
@@ -115,8 +110,14 @@ const compile = string => {
 				break;
 			}
 		}
-		return (parts.length==2 && /^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(parts[1]) && /^[$A-Z_][0-9A-Z_$]*$/i.test(parts[0]) ? parts : undefined);
-	}
+		if(parts.length==2) {
+			if(parts[0]==="Date") {
+				parts[1] = parseInt(parts[1]);
+				return parts;
+			}
+			if(/^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(parts[1]) && /^[$A-Z_][0-9A-Z_$]*$/i.test(parts[0])) return parts;
+		}
+	},
 	toValue = value => {
 		if(typeof(value)==="string") {
 			if(value[0]==='"' && value[value.length-1]==='"') return value;
@@ -130,20 +131,10 @@ const compile = string => {
 	},
 	toEdgeValue = value => (typeof(value)==="string" && !parseId(value) && value!=="*") ? JSON.stringify(value) : value;
 
-
-function AsyncLocalStorage(localStorage) {
-	for(let key in Object.getPrototypeOf(localStorage)) this[key] = async function(...args) { return localStorage[key](...args); }
-	this.set = this.setItem;
-	this.get = this.getItem;
-	this.del = this.remove = this.removeItem;
-	return this;
-}
-
 async function* cartesian(head, ...tail) {
   const remaining = tail.length > 0 ? cartesian(...tail) : [[]];
   for await (let r of remaining) { for await (let h of head) { const result = [h, ...r]; if(!result.includes(undefined)) yield result; } };
 }
-
 
 async function* pipe(functions,arg=null,recursing) {
 	if(!pipe.recursing) pipe.END = false;
@@ -202,7 +193,14 @@ class Query {
 		}
 		return this.results;
 	}
-	//concat
+	concat(...values) {
+		this.collect();
+		this.command.push(function*(data) {
+			for(let item of data) yield item;
+			for(let item of values) yield item;
+		});
+		return this;
+	}
 	collect() {
 		const length = this.command.length;
 		this.command.push(function collect(command) {
@@ -525,7 +523,7 @@ class Database {
 						idparts = parseId(parts.pop());
 				if(idparts) {
 					let [classname,id] = idparts;
-					if(classname==="Date") value = new Date(parseInt(id));
+					if(classname==="Date") value = new Date(id);
 				}
 				this.key = key; // use to load from a key value store as prefix
 				this.edges = {};
@@ -534,23 +532,22 @@ class Database {
 				this.ondelete = {};
 				if(value!==undefined) this.value = value;
 				const loaded = new Promise(async resolve => {
-					if(idparts && idparts[0]==="Date") {
-						resolve();
-						return;
-					}
-					const item = await storage.getItem(this.key),
-						create = (!item ? true : false);
-					if(item) Object.assign(this,JSON.parse(item));
-					const action = this.value===undefined ? "created" : "updated";
-					if(value!==undefined) this.value = value;
-					if(this.value && typeof(this.value)==="object") {
-						const classname = parseId(this.value["#"])[0];
-						if(classname) {
-							if(!Function("object","cls","return object instanceof cls")(this.value,database.constructors[classname])) {
-								this.value = Object.assign(Object.create(database.constructors[classname].prototype),this.value);
-								this.value.constructor = database.constructors[classname];
-							}
+					//if(idparts && idparts[0]==="Date") {
+					//	resolve();
+					//	return;
+					//}
+					let create = false,
+						action;
+					const item = await storage.getItem(this.key);
+					if(item) {
+						action = "updated";
+						Object.assign(this,JSON.parse(item));
+						if(this.value)  {
+							this.value = await database.deserialize(this.value);
 						}
+					} else {
+						create = true;
+						action = "created";
 					}
 					if(put || create) {
 						if(!this["^"]) {
@@ -569,7 +566,7 @@ class Database {
 								if(typeof(gparent.onput[fstr])==="boolean") gparent.onput[fstr] = new Function("return " + fstr);
 								const event = {path:path.join("/"),value,event:"put"};
 								if(parseId(value)) {
-									event.object = database.data.edges[value].value;
+									event.object = database.getObject(value);
 									event.value = event.object[path[path.length-1]];
 								}
 								gparent.onput[fstr](event)
@@ -586,7 +583,7 @@ class Database {
 				if(!id) id = object["#"] = idGenerator(object);
 				const ctor = object.constructor,
 					classname = ctor.name;
-				if(!database.constructors[classname]) database.constructors[classname] = ctor===Date ? (...args) => new Date(...args) : ctor;
+				if(!database.constructors[classname]) database.constructors[classname] = ctor;
 				if(object instanceof Date) {
 					atoms.push([ctor,id,"month",object.getUTCMonth()]);
 					atoms.push([ctor,id,"date",object.getUTCDate()]);
@@ -611,7 +608,7 @@ class Database {
 				return atoms;
 			}
 			toJSON() {
-				const value = (typeof(this.value)==="function" ? this.value+"" : this.value),
+				const value = database.serialize(this.value), //database.serialize(this.value), //(typeof(this.value)==="function" ? this.value+"" : this.value), //
 					json = {value,"^":this["^"],onput:{},ondelete:{}};
 				for(let key in this.onput) {
 					json.onput[key] = true;
@@ -683,11 +680,14 @@ class Database {
 					const type = typeof(key);
 					if(type==="string") {
 						if(key==="..") {
-							for(let id in this.edges) {
-								let edge = this.edges[id];
+							const parts = this.key.split("/");
+							parts.shift();
+							const child = database.getEdge(parts);
+							for(let id in child.edges) {
+								let edge = child.edges[id];
 								if(!edge || !edge.loaded) {
 									const classname = parseId(id)[0];
-									edge = this.edges[id] = new Graph(`${database.data.key}/${classname}/${id}`);
+									edge = child.edges[id] = new Graph(`${database.data.key}/${classname}/${id}`);
 								}
 								await edge.loaded;
 								yield edge.value;
@@ -992,8 +992,7 @@ class Database {
 				} else {
 					this["^"].updated = Date.now();
 				}
-				const data = JSON.stringify(this);
-				storage.setItem(this.key,data); // await?
+				storage.setItem(this.key,JSON.stringify(this)); // await?
 				return this;
 			}
 			async delete(pathOrPattern) {
@@ -1063,7 +1062,7 @@ class Database {
 		var database = this;
 		this.storage = storage;
 		this.options = Object.assign({},options);
-		this.constructors = {};
+		this.constructors = {Object,Date};
 		this.tests = Object.assign({},Database.tests);
 		if(options.tests) Object.assign(this.tests,options.tests);
 		this.commands = [];
@@ -1124,6 +1123,32 @@ class Database {
 			return;
 		}
 	}
+	async deserialize(data) {
+		const type = typeof(data);
+		if(!data || type!=="object") return data;
+		if(Array.isArray(data)) return data.map(async item => await this.deserialize(data));
+		for(let key in data) {
+			let value = data[key];
+			if(key!=="#" && parseId(value)) {
+				data[key] = await this.getObject(value);
+			} else {
+				value = compile(value);
+				if(typeof(value)==="function") {
+					Object.defineProperty(data,key,{enumerable:false,configurable:true,writable:true,value});
+				} else {
+					data[key] = value;
+				}
+			}
+		}
+		const classname = parseId(data["#"])[0];
+		if(classname) {
+			if(!Function("object","cls","return object instanceof cls")(data,this.constructors[classname])) {
+				data = Object.assign(Object.create(this.constructors[classname].prototype),data);
+				Object.defineProperty(data,"constructor",{enumerable:false,configurable:true,writable:true,value:this.constructors[classname]});
+			}
+		}
+		return data;
+	}
 	get(pathOrPattern,ctor)  {
 		if(ctor) {
 			pathOrPattern = Object.assign(Object.create(ctor.prototype),pathOrPattern);
@@ -1138,14 +1163,16 @@ class Database {
 		if(parts.length===0) return edge;
 	}
 	async getObject(id) {
-		const classname = id.split("@")[0];
+		const parts = id.split("@"),
+			classname = parts[0];
+		if(classname==="Date") return new Date(parseInt(parts[1]));
 		let edge = this.data.edges[classname] && this.data.edges[classname].edges[id] ? this.data.edges[classname].edges[id] : undefined;
 		if(!edge) return;
 		let value = edge.value;
 		if(!value) return;
 		const ctor = this.constructors[classname] || compile(this.data.edges[classname].value) || Object;
 		if(value.constructor!==ctor) {
-			egde.value = Object.assign(Object.create(ctor.prototype),value);
+			edge.value = Object.assign(Object.create(ctor.prototype),value);
 		}
 		const returnValue = (value ? Object.assign(Object.create(ctor.prototype),value) : value),
 		storedValue = (value ? Object.assign(Object.create(ctor.prototype),value) : value);
@@ -1194,6 +1221,26 @@ class Database {
 	}
 	put(...data)  {
 		return new Query().get().put(...data);
+	}
+	serialize(data) {
+		const type = typeof(data);
+		if(type=="function") return data+"";
+		if(!data || type!=="object") return data;
+		if(data instanceof Date) return data.getTime();
+		const object = {};
+		for(let key in data) {
+			const value = data[key];
+			if(value && typeof(value)==="object") {
+				if(value instanceof Date) {
+					object[key] = `Date@${value.getTime()}`;
+				} else {
+					object[key] = value["#"];
+				}
+			} else {
+				object[key] = this.serialize(value);
+			}
+		}
+		return object;
 	}
 	static get tests() {
 		return {

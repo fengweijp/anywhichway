@@ -128,7 +128,7 @@ Object/address/city/"Bainbridge Island"
 Object/address/zipcode/base/98110
 ```
 
-Any location in the path can also be the * wildcard, a compiled inline test, a dynamic inline test, e.g.
+Any location in the path can also be the * wildcard, a compiled inline test, a dynamic inline test, a ".." relative location, e.g.
 
 
 `Object/address/city/*` - matches any Object with an address and a city property and returns the Object
@@ -145,8 +145,9 @@ Any location in the path can also be the * wildcard, a compiled inline test, a d
 
 `Object/#/(value) => ... some code` - the equivalent of a table scan across all Objects, returns all Objects satisfying the inline
 
-
 `*/#/(value) => ... some code` - the equivalent of a table scan across instances of all classes, returns all objects satisfying the inline
+
+`Date/month/7/*/..` - get all objects that have an August date as a child, perhaps a birthday.
 
 Tertiary nodes after the "#" selector can be property names or method calls, e.g.
 
@@ -294,11 +295,13 @@ At the moment it is up to the implementor to look-up session ids, user ids and g
 
 Since the `returnValue` reference is an in memory version, it can be modified, i.e. properties can be deleted or 
 their values can be masked for read and eliminated or restored to their current stored value for write. The `storedValue` is frozen and should be
-used for reference only. Attempts to change it will result in an error.
+used for reference only. Attempts to change it will result in an error. To ignore changes just use `Object.assign(returnValue,storedValue)`.
 
 # Extending AnyWhichWay
 
 # Release History (reverse chornological order)
+
+2018-03-08 - enhanced documentation, improved relative paths and nested objects.
 
 2018-03-07 - Enhanced documentation, pattern matching, joins, and unit tests.
 

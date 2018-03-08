@@ -52,7 +52,11 @@ function Car(config) {
 }
 Car.prototype.makeAndModel = function() { return `${this.brand}:${this.model}`; }
 
-const init = db0.get().put({enrolled:new Date("August 19, 1975 23:15:30"),age:27,name:"Joe",secret:"wink!",SSN:"999-99-9999"},{name:"John",secret:"wink!",SSN:"999-99-9999"},{name:"John",age:29,secret:"wink!",SSN:"999-99-9999"},new Car({brand:"Audi",model:"A4"})).all();
+const init = db0.get().put(
+		new Car({brand:"Audi",model:"A4"}),
+		{enrolled:new Date("August 19, 1975 23:15:30"),age:27,name:"Joe",secret:"wink!",SSN:"999-99-9999"},
+		{name:"John",secret:"wink!",SSN:"999-99-9999",address:{city:"Seattle",zipcode:{base:98101,plus4:0001}}},
+		{name:"John",age:29,secret:"wink!",SSN:"999-99-9999"}).all();
 //db0.register(Date);
 
 
@@ -89,16 +93,7 @@ describe("Test",function () {
 				done()})
 			.catch(e => done(e))
 	});
-	it(`# db0.get("Date/month/7").all()`,function(done) {
-		const test  = eval("()=>"+this.test.title.substring(1));
-		test().then(result => {
-				expect(result[0].enrolled+""==new Date("August 19, 1975 23:15:30")).to.equal(true);
-				this.test.title += " = " + JSON.stringify(result);
-				done(); 
-				benchmark({name:this.test.title,fn:test});})
-			.catch(e => done(e))
-	});
-	it(`# db0.get("Date/*/../*").all()`,function(done) {
+	it(`# db0.get("Date/*/../*/").all()`,function(done) {
 		const test  = eval("()=>"+this.test.title.substring(1));
 		test().then(result => {
 				expect(new Date(result[0].enrolled)+""==new Date("August 19, 1975 23:15:30")+"").to.equal(true);
@@ -107,6 +102,16 @@ describe("Test",function () {
 				benchmark({name:this.test.title,fn:test});})
 			.catch(e => done(e))
 	});
+	it(`# db0.get("Date/month/7/*/..").all()`,function(done) {
+		const test  = eval("()=>"+this.test.title.substring(1));
+		test().then(result => {
+				expect(result[0].enrolled+""==new Date("August 19, 1975 23:15:30")).to.equal(true);
+				this.test.title += " = " + JSON.stringify(result);
+				done(); 
+				benchmark({name:this.test.title,fn:test});})
+			.catch(e => done(e))
+	});
+	
 	it(`# db0.get("Date/*/../*/age/27").all()`,function(done) {
 		const test  = eval("()=>"+this.test.title.substring(1));
 		test().then(result => {
@@ -362,6 +367,16 @@ describe("Test",function () {
 			.then(result => {
 				expect(result.length).to.equal(8);
 				expect(passed).to.equal(true);
+				this.test.title += " = " + JSON.stringify(result);
+				done()})
+			.catch(e => done(e))
+	});
+	it(` db0.on({optin:value=>value===true},"put",(...args) => passed = args).all()`,function (done) {
+		let passed;
+		const test  = () => db0.on({optin:value=>value===true},"put",(...args) => passed = args).put({optin:true}).all();
+		test()
+			.then(result => {
+				expect(Array.isArray(passed)).to.equal(true);
 				this.test.title += " = " + JSON.stringify(result);
 				done()})
 			.catch(e => done(e))
