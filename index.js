@@ -247,9 +247,9 @@ class Query {
 		this.command.push(data => { f(data); return data;} );
 		return this;
 	}
-	get(pathOrPattern) {
+	get(pathOrPattern,edgeOnly) {
 		const edge = this.database.data;
-		this.command.push(async function*() { for await (let next of edge.get(normalizePathOrPattern(pathOrPattern))) yield next; });
+		this.command.push(async function*() { for await (let next of edge.get(normalizePathOrPattern(pathOrPattern),edgeOnly,false,edgeOnly)) yield next; });
 		return this;
 	}
 	join(...pathsOrPatternsAndTest) {
@@ -302,14 +302,21 @@ class Query {
 		return this;
 	}
 	merge(query,where) {
-		this.commands.push(async function*(data) {
+		this.command.push(async function*(data) {
 			const values = query.all();
 				record = (Array.isArray(data) ? data : [data]);
 			record.slice().push(value);
 			for(let value of values) {
 				if(!where || where(record)) yield record;
 			}
-		})
+		});
+		return this;
+	}
+	on(pattern,eventName,callback) {
+		this.command.push(edge => {
+			console.log(pattern,eventName,callback);
+			return edge;
+		});
 		return this;
 	}
 	pop() {
@@ -581,6 +588,7 @@ class Database {
 				let	atoms = [],
 					id = object["#"];
 				if(!id) id = object["#"] = idGenerator(object);
+				database.validate(object);
 				const ctor = object.constructor,
 					classname = ctor.name;
 				if(!database.constructors[classname]) database.constructors[classname] = ctor;
@@ -601,7 +609,8 @@ class Database {
 						const children = await this.atomize(value,idGenerator);
 						atoms = atoms.concat(children);
 						atoms.push([value.constructor,"..",value["#"],id]);
-					} else if(type!=="undefined"){
+					}
+					if(type!=="undefined"){
 						atoms.push([ctor,id,key,value]);
 					}
 				}
@@ -635,21 +644,28 @@ class Database {
 				}
 				return json;
 			}
-			async* find(pattern,all) {
+			async* find(pattern,create,edgeOnly,all) {
 				await this.loaded;
 				const sets = [],
 					atoms = await this.atomize(pattern,() => "*");
 				for(let [ctor,id,key,value] of atoms) {
 					if(!all && key==="#" && value==="*") continue; //avoid matching all objects!
 					const set = [],
-						generator = this.get([ctor.name,key,(value==="*" ? value : toEdgeValue(value)),id],false,false,true);
+						generator = this.get([ctor.name,key,(value==="*" ? value : toEdgeValue(value)),id],create,false,true);
 					for await (let edge of generator) set.push(edge.key.split("/").pop())
 					sets.push(set);
 				}
 				const results = intersection(...sets);
-				for(let id of results) {
-					const [classname,uuid] = parseId(id);
-					yield database.data.edges[classname].edges[id].value;
+				if(edgeOnly) {
+					const classname = pattern.constructor.name;
+					for(let edgename of results) {
+						yield database.data.edges[classname].edges[edgename];
+					}
+				} else {
+					for(let id of results) {
+						const [classname,uuid] = parseId(id);
+						yield database.data.edges[classname].edges[id].value;
+					}
 				}
 				return;
 			}
@@ -662,7 +678,7 @@ class Database {
 					yield pathOrPattern();
 					return;
 				}
-				if(typeof(pathOrPattern)==="object" && !Array.isArray(pathOrPattern)) return yield* this.find(pathOrPattern);
+				if(typeof(pathOrPattern)==="object" && !Array.isArray(pathOrPattern)) return yield* this.find(pathOrPattern,create,edgeOnly);
 				await this.loaded;
 				let parts = Array.isArray(pathOrPattern) ? pathOrPattern : pathOrPattern.split("/");
 				if(database.options.inline) parts = compilePath(parts);
@@ -789,7 +805,9 @@ class Database {
 							true;
 						}
 					} else if(key==="*") {
+						let some;
 						for(let value in this.edges) {
+							some = true;
 							if(!this.edges[value].loaded) {
 								this.edges[value] = new Graph(`${this.key}/${value}`,toValue(value),put);
 								await this.edges[value].loaded;
@@ -797,6 +815,7 @@ class Database {
 							}
 							yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly);
 						}
+						if(!some && edgeOnly && parts.length===1) yield this;
 					} else {
 						edge = this.edges[key];
 						if(!edge && !create) return;
@@ -937,53 +956,59 @@ class Database {
 				await this.loaded;
 				const type = typeof(data);
 				if(data && type==="object") {
-					const atoms = await this.atomize(data),
-						//ctor = data.constructor===Date ? (...args) => new Date(...args) : data.constructor,
-						//classname = ctor.name,
-						tosave = {};
-					//if(!database.constructors[classname]) database.constructors[classname] = ctor;
+					const atoms = await this.atomize(data);
+					// if we put transaction ids in the metadata of all objects we could null them out after indexing, then we could have a transaction registry to look these up and if not nulled re-index
 					for(let [ctor,id,key,value] of atoms) {
 						const classname = ctor.name;
 						let edge = database.data.edges[classname];
 						if(!edge || !edge.loaded) edge = database.data.edges[classname] = new Graph(`${database.data.key}/${classname}`,ctor===Date ? (...args) => new Date(...args) : ctor,true);
 						await edge.loaded;
-						if(id!=="..") {
-							tosave[classname] = true;
-							database.data.edges[classname].edges[id] = new Graph(`${database.data.key}/${classname}/${id}`,data,duration||true);
-							edge = edge.edges[key];
-							if(!edge || !edge.loaded) {
-								tosave[classname] = true;
-								edge = database.data.edges[classname].edges[key] = new Graph(`${database.data.key}/${classname}/${key}`,key,true);
-							}
-							await edge.loaded;
-							const evalue = key==="#" ? value : toEdgeValue(value);
-							edge = edge.edges[evalue];
-							if(!edge || !edge.loaded) {
-								edge = database.data.edges[classname].edges[key].edges[evalue] = new Graph(`${database.data.key}/${classname}/${key}/${evalue}`,value,duration||true);
-								await database.data.edges[classname].edges[key].save();
-							}
-							await edge.loaded;
-							if(key==="#") {
-								
-							}
-							edge.edges[id] = database.data.edges[classname].edges[id];
-							await edge.save();
-						} else {
-							const parentclass = parseId(value)[0];
-							database.data.edges[classname].edges[key].edges[value] = database.data.edges[parentclass].edges[value];
-							await database.data.edges[classname].edges[key].save();
+						if(value && typeof(value)==="object") {
+							database.data.edges[value.constructor.name].edges[value["#"]] = new Graph(`${database.data.key}/${value.constructor.name}/${value["#"]}`,value,duration||true);
+							await database.data.edges[value.constructor.name].save();
 						}
 					}
-					for(let classname in tosave) {
-						await database.data.edges[classname].save();
+					database.data.edges[data.constructor.name].edges[data["#"]] = new Graph(`${database.data.key}/${data.constructor.name}/${data["#"]}`,data,duration||true);
+					await database.data.edges[data.constructor.name].save();
+					for(let [ctor,id,key,value] of atoms) {
+						if(value && typeof(value)==="object") continue;
+							const classname = ctor.name;
+							//if(database.schema[classname] || id===data["#"]) {
+							let edge = database.data.edges[classname];
+								if(id==="..") {
+									const parentclass = parseId(value)[0];
+									edge = database.data.edges[classname].edges[key];
+									if(!edge || !edge.loaded) {
+										edge = database.data.edges[classname].edges[key] = new Graph(`${database.data.key}/${classname}/${key}`,key,true);
+									}
+									await edge.loaded;
+									edge.edges[value] = database.data.edges[parentclass].edges[value];
+									await edge.save();
+								} else {
+									edge = edge.edges[key];
+									if(!edge || !edge.loaded) {
+										edge = database.data.edges[classname].edges[key] = new Graph(`${database.data.key}/${classname}/${key}`,key,true);
+									}
+									await edge.loaded;
+									const evalue = key==="#" ? value : toEdgeValue(value);
+									edge = edge.edges[evalue];
+									if(!edge || !edge.loaded) {
+										edge = database.data.edges[classname].edges[key].edges[evalue] = new Graph(`${database.data.key}/${classname}/${key}/${evalue}`,value,duration||true);
+										await database.data.edges[classname].edges[key].save();
+									}
+									await edge.loaded;
+									if(key==="#") {
+										
+									}
+									edge.edges[id] = database.data.edges[classname].edges[id];
+									await edge.save();
+								}
+							//}
 					}
 				} else {
 					this.value = data;
 					await this.save();
 				}
-			}
-			register(ctor,name=ctor.name) {
-				this.constructors[name] = ctor;
 			}
 			async save() {
 				if(Object.keys(this.edges).length===0 && this.value===undefined) return await storage.removeItem(this.key);
@@ -1063,6 +1088,7 @@ class Database {
 		this.storage = storage;
 		this.options = Object.assign({},options);
 		this.constructors = {Object,Date};
+		this.schema = {};
 		this.tests = Object.assign({},Database.tests);
 		if(options.tests) Object.assign(this.tests,options.tests);
 		this.commands = [];
@@ -1210,6 +1236,19 @@ class Database {
 	join(...pathsOrPatternAndTest)  {
 		return new Query(this).join(...pathsOrPatternAndTest);
 	}
+	//on(pathOrPattern,eventName,callback) {
+	//	return new Query(this).get(pathOrPattern,true).on(eventName,callback);
+	//}
+	on(pathOrPattern,eventName,callback) {
+		let base = pathOrPattern;
+		if(typeof(pathOrPattern)==="object") {
+			base = Object.assign({},pathOrPattern);
+			for(let key in base) {
+				base[key] = "*";
+			}
+		}
+		return new Query(this).get(base,true).on(pathOrPattern,eventName,callback);
+	}
 	patch(data,object)  {
 		return async function* (...args)  { 
 			yield args; 
@@ -1220,7 +1259,11 @@ class Database {
 		return new Query(this).provide(...values);
 	}
 	put(...data)  {
-		return new Query().get().put(...data);
+		return new Query(this).get().put(...data);
+	}
+	register(ctor,name=ctor.name,schema=ctor.schema) {
+		this.constructors[name] = ctor;
+		this.schema[name] = schema;
 	}
 	serialize(data) {
 		const type = typeof(data);
@@ -1241,6 +1284,24 @@ class Database {
 			}
 		}
 		return object;
+	}
+	validate(data) {
+		const type = typeof(data);
+		if(!data || type!=="object") return true;
+		const classname = data.constructor.name,
+			schema = this.schema[classname];
+		if(schema && typeof(schema)==="object") {
+			for(let key in schema) {
+				const value = schema[key],
+					type = typeof(value);
+				if(!value(data[key])) {
+					throw new TypeError(`${data["#"]} violates schema ${classname}.${key} ${value}`);
+				}
+				this.validate(value);
+			}
+		} else {
+			for(let key in data) this.validate(data[key]);
+		}
 	}
 	static get tests() {
 		return {

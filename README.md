@@ -297,9 +297,36 @@ Since the `returnValue` reference is an in memory version, it can be modified, i
 their values can be masked for read and eliminated or restored to their current stored value for write. The `storedValue` is frozen and should be
 used for reference only. Attempts to change it will result in an error. To ignore changes just use `Object.assign(returnValue,storedValue)`.
 
+# Transactions
+
+Writes of objects that do not contain nested objects or that contain only nested objects of classes that are not registered with schema are atomic and done before indexing. This is somewhat transactional; however, if there is a failure, indexes may be incomplete.
+
+Writes of objects that contain nested objects that are registered as schema are not currently atomic, each obect is a separate atomic write. All objects are written prior to indexing. Currently schema must be registered every time a database is started using the `register(ctor,name=ctor.name,schema=ctor.schema)` method on the database. Passing `true` in as the value for `schema` will force indexing, but no validation will be done on the instances of `ctor`.
+
+The above being said, a base design for transactional capability has been envisioned and the capability is possible.
+
 # Extending AnyWhichWay
 
+## Predicates
+
+New predicates, e.g. `gt`, `gte`, can be added using the `tests` property on the `options` object when starting a database.
+
+Predicates added this way become usable both in Query patterns and pipelinable query commands.
+
+The below example woud just replace the `outside` predicate with what happens to be the same code as its internal representation
+
+```javascript
+function outside(b1,b2) {
+	return value => value != b1 && value !=b2 && (b2 > b1 ? value<b1 || value>b2 : value>b1 || value<b2);
+}
+const db = new Database(store,{tests:{outside}});
+```
+
+			
+
 # Release History (reverse chornological order)
+
+2018-03-09 - enhanced documentation, added schema validation.
 
 2018-03-08 - enhanced documentation, improved relative paths and nested objects.
 
