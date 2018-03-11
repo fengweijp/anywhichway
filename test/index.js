@@ -82,7 +82,15 @@ describe("Test",function () {
 				expect(e).to.be.instanceof(Error);
 			});
 	});
-	it(` db0.query().put(new Car({brand:"Jaguar",model:"XK8"}),now).get("Metadata/expires").all()`,function(done) {
+	it(` db0.query().put(new Car({brand:"Jaguar",model:"XK8"}),now).get("Metadata/expires/gte(${now})",true).all()`,function(done) {
+		const test  = eval("()=>"+this.test.title.substring(1));
+		test()
+			.then(result => {
+				done();
+				perf.push({name:this.test.title,fn:test})})
+			.catch(e => done(e))
+	});
+	it(` db0.query().delete({brand:"Jaguar",model:"XK8",instanceof:"Car"}).all()`,function(done) {
 		const test  = eval("()=>"+this.test.title.substring(1));
 		test()
 			.then(result => {
@@ -552,6 +560,3 @@ if(typeof(mocha)!=="undefined") {
 		});
 	});
 }
-
-
-

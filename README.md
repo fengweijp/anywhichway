@@ -385,6 +385,8 @@ Note that `outside` returns a function that take a single argument, `value`. Thi
 
 # Release History (reverse chronological order)
 
+2018-03-11 - ALPHA improved metadata support, started work on delete.
+
 2018-03-11 - ALPHA enhanced documentation, added events and instanceof support.
 
 2018-03-09 - ALPHA enhanced documentation, added schema validation.

@@ -185,6 +185,7 @@ async function* pipe(functions,arg=null,recursing) {
 
 class Metadata {
 	constructor(subject) {
+		if(!subject["#"]) subject["#"] = defaultIdGenerator(subject);
 		this.created = new Date();
 		this.subject = subject["#"];
 		this["#"] = defaultIdGenerator(this);
@@ -230,6 +231,22 @@ class Query {
 		});
 		return this;
 	}
+	delete(pathOrPatternOrId,ctor = pathOrPatternOrId ? pathOrPatternOrId.instanceof : undefined) {
+		if(ctor) {
+			if(typeof(ctor)==="string") {
+				ctor = this.database.constructors[ctor];
+			}
+			pathOrPatternOrId = Object.assign(Object.create(ctor.prototype),pathOrPatternOrId);
+			delete pathOrPatternOrId.instanceof;
+		}
+		if(pathOrPatternOrId && typeof(pathOrPatternOrId)==="object") {
+			Object.defineProperty(pathOrPatternOrId,"isPattern",{enumerable:false,configurable:true,writable:true,value:true})
+		}
+		this.command.push(() =>
+			this.database.data.delete(pathOrPatternOrId)
+		);
+		return this;
+	}
 	every(f) {
 		this.collect();
 		this.command.push(data => 
@@ -260,7 +277,7 @@ class Query {
 		this.command.push(data => { f(data); return data;} );
 		return this;
 	}
-	get(pathOrPattern,edgeOnly,ctor=pathOrPattern ? pathOrPattern.instanceof : undefined) {
+	get(pathOrPattern,edgeOnly,ctor = pathOrPattern ? pathOrPattern.instanceof : undefined) {
 		const edge = this.database.data;
 		if(ctor) {
 			if(typeof(ctor)==="string") {
@@ -579,7 +596,7 @@ class Database {
 					}
 					if(putOrExpires || create) {
 						if(this.value && typeof(this.value)==="object" && !(this.value instanceof Metadata) && !(this.value instanceof Date)) {
-							let metadata = this.value["^"];
+						/*	let metadata = this.value["^"];
 							if(!metadata) {
 								metadata = this.value["^"] = new Metadata(this.value);
 							}
@@ -591,7 +608,7 @@ class Database {
 								metadata.expires = new Date((metadata.updated || metadata.created) + 	metadata.duration);
 							} else if(metadata.duration) {
 								metadata.expires = new Date((metadata.updated || metadata.created) + 	metadata.duration);
-							}
+							}*/
 							await storage.setItem(key,JSON.stringify(this));
 							//await database.data.put(metadata); // this should be patch
 							/*if(metadata.expires) {
@@ -600,7 +617,7 @@ class Database {
 								let edges = await database.data.get(["expires",classname,"month",metadata.expires.getMonth(),id],true,true,true);
 								for await(let edge of edges) {
 									edge.value = id;
-									edge.save();
+									await edge.save();
 								}
 							}*/
 						} else {
@@ -688,6 +705,59 @@ class Database {
 				}
 				return json;
 			}
+			async delete(pathOrPattern) {
+				if(typeof(pathOrPattern)==="object" && !Array.isArray(pathOrPattern)) {
+				let deleted,
+					next;
+				for await (let value of this.find(pathOrPattern)) {
+					const classname = parseId(value["#"])[0],
+						edge = database.data.edges[classname].edges[value["#"]];
+					if(edge) {
+						/*await edge.loaded;
+						const object = edge.value;
+						if(object && typeof(object)==="object" && object["#"]) {
+							const atoms = await this.atomize(object,false);
+							for(let [id,key,value] of atoms) {
+								if(id===object["#"]) await database.data.delete([key,toEdgeValue(value),id]);
+							}
+						}
+						await edge.delete();*/
+						delete database.data.edges[classname].edges[value["#"]];
+						await database.data.edges[classname].save();
+						deleted = true;
+					}
+				}
+				if(deleted) {
+					await database.data.save();
+				}
+				return;
+			} 
+			let deleted,
+				next;
+			for await (let edge of database.data.get(pathOrPattern,false)) {
+				await edge.loaded;
+				await edge.delete();
+			}
+			const id = pathOrPattern.pop();
+			for await (let edge of database.data.get(pathOrPattern,false)) {
+				if(edge.edges[id]) {
+					delete edge.edges[id];
+					await edge.save();
+				}
+			}
+			const value = pathOrPattern.pop();
+			for await (let edge of database.data.get(pathOrPattern,false)) {
+				if(edge.edges[value]) {
+					edge.edges[value].edges = {};
+					await edge.edges[value].save();
+					delete edge.edges[value];
+					
+					await edge.save();
+				}
+			}
+			if(deleted) await this.save();
+			return;
+		}
 			async* find(pattern,create,edgeOnly,all) {
 				await this.loaded;
 				const sets = [],
@@ -833,11 +903,13 @@ class Database {
 								if(database.options.inline) testvalue = compileInlineArg(testvalue);
 								for(let value in this.edges) {
 									let totest = (parseId(value) ? await database.getObject(value) : toValue(value));
+									if(typeof(testvalue)==="string" && typeof(totest)==="object") totest += "";
 									if(test(testvalue)(totest)) {
 										if(!this.edges[value].loaded) {
 											this.edges[value] = new Graph(`${this.key}/${value}`,toValue(value),put);
+											await this.edges[value].loaded;
 										}
-										 yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly);
+										yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly);
 									}
 								}
 								return;
@@ -877,15 +949,14 @@ class Database {
 						if(!edge && !create) return;
 						if(!edge || !edge.loaded) {
 							edge = this.edges[key]  = new Graph(`${this.key}/${key}`,toValue(key),put);
-							await this.edges[key].loaded;
 						}
+						await edge.loaded;
 						let keyparts;
 						if((keyparts=parseId(key))) {
 							const classname = keyparts[0];
 							edge = edge.edges[key] = database.data.edges[classname].edges[key];
 							if(!edge) {
 								edge = edge.edges[key] = database.data.edges[classname].edges[key] = database.data.edges[key] = new Graph(`${database.data.key}/${key}`,toValue(key),put);
-								await edge.loaded;
 							}
 							await edge.loaded;
 							edge.value || (edge.value = {});
@@ -1020,14 +1091,28 @@ class Database {
 					}
 				}
 			}
-			async put(data,expires) {		
+			async put(data,durationOrDate) {		
 				await this.loaded;
 				const type = typeof(data);
 				if(data && type==="object") {
+					let metadata = data["^"];
+					if(!metadata) {
+						metadata = data["^"] = new Metadata(data);
+					}
+					metadata.updated = new Date();
+					if(durationOrDate && typeof(durationOrDate)==="object" && durationOrDate instanceof Date) {
+						metadata.expires = durationOrDate;
+					} else if(typeof(durationOrDate)==="number") {
+						metadata.duration = durationOrDate;
+						metadata.expires = new Date((metadata.updated || metadata.created) + 	metadata.duration);
+					} else if(metadata.duration) {
+						metadata.expires = new Date((metadata.updated || metadata.created) + 	metadata.duration);
+					}
 					const atoms = this.atomize(data);
 					// if we put transaction ids in the metadata of all objects we could null them out after indexing, then we could have a transaction registry to look these up and if not nulled re-index
 					const seen = {},
-						uatoms = [];
+						uatoms = [],
+						promises = [];
 					for(let [ctor,id,key,value] of atoms) {
 						const classname = ctor.name,
 							type = typeof(value),
@@ -1037,17 +1122,19 @@ class Database {
 						uatoms.push([ctor,id,key,value]);
 						let edge = database.data.edges[classname];
 						if(!edge || !edge.loaded) edge = database.data.edges[classname] = new Graph(`${database.data.key}/${classname}`,ctor===Date ? (...args) => new Date(...args) : ctor,true);
-						await edge.loaded;
+						promises.push(edge.loaded);
 						if(value && typeof(value)==="object") {
 							if(!database.data.edges[value.constructor.name].edges[value["#"]]) {
-								database.data.edges[value.constructor.name].edges[value["#"]] = new Graph(`${database.data.key}/${value.constructor.name}/${value["#"]}`,value,expires||true);
-								await database.data.edges[value.constructor.name].save();
+								database.data.edges[value.constructor.name].edges[value["#"]] = new Graph(`${database.data.key}/${value.constructor.name}/${value["#"]}`,value,true);
+								promises.push(database.data.edges[value.constructor.name].edges[value["#"]].loaded);
+								promises.push(database.data.edges[value.constructor.name].save());
 							} else {
 								// patch?
 							}
 						}
 					}
-					database.data.edges[data.constructor.name].edges[data["#"]] = new Graph(`${database.data.key}/${data.constructor.name}/${data["#"]}`,data,expires||true);
+					database.data.edges[data.constructor.name].edges[data["#"]] = new Graph(`${database.data.key}/${data.constructor.name}/${data["#"]}`,data,durationOrDate||true);
+					promises.push(database.data.edges[data.constructor.name].edges[data["#"]].loaded);
 					await database.data.edges[data.constructor.name].save();
 					for(let [ctor,id,key,value] of uatoms) {
 						if(value && typeof(value)==="object") {
@@ -1061,27 +1148,27 @@ class Database {
 									edge = database.data.edges[classname].edges[key];
 									if(!edge || !edge.loaded) {
 										edge = database.data.edges[classname].edges[key] = new Graph(`${database.data.key}/${classname}/${key}`,key,true);
-										await database.data.edges[classname].save();
+										promises.push(await database.data.edges[classname].save());
 									}
-									await edge.loaded;
+									promises.push(edge.loaded);
 									edge.edges[value] = database.data.edges[parentclass].edges[value];
-									await edge.save();
+									promises.push(edge.save());
 								} else {
 									edge = edge.edges[key];
 									if(!edge || !edge.loaded) {
 										edge = database.data.edges[classname].edges[key] = new Graph(`${database.data.key}/${classname}/${key}`,key,true);
-										await database.data.edges[classname].save();
+										promises.push(database.data.edges[classname].save());
 									}
-									await edge.loaded;
+									promises.push(edge.loaded);
 									const evalue = key==="#" ? value : toEdgeValue(value);
 									edge = edge.edges[evalue];
 									if(!edge || !edge.loaded) {
 										edge = database.data.edges[classname].edges[key].edges[evalue] = new Graph(`${database.data.key}/${classname}/${key}/${evalue}`,value,true);
-										await database.data.edges[classname].edges[key].save();
+										promises.push(database.data.edges[classname].edges[key].save());
 									}
-									await edge.loaded;
+									promises.push(edge.loaded);
 									edge.edges[id] = database.data.edges[classname].edges[id];
-									await edge.save();
+									promises.push(edge.save());
 								}
 					}
 					for(let [ctor,id,key,value] of uatoms) {
@@ -1098,84 +1185,17 @@ class Database {
 								}
 							}
 						}
-					}			
+					}
+					return Promise.all(promises);
 				} else {
 					this.value = data;
-					await this.save();
+					return this.save();
 				}
 			}
 			async save() {
 				if(Object.keys(this.edges).length===0 && this.value===undefined) return await storage.removeItem(this.key);
-				let metadata = this["^"];
-				if(!metadata) {
-					metadata = this["^"] = new Metadata(this);
-				}
-				metadata.updated = new Date();
-				storage.setItem(this.key,JSON.stringify(this)); // await?
+				await storage.setItem(this.key,JSON.stringify(this)); // await?
 				return this;
-			}
-			async delete(pathOrPattern) {
-				if(arguments.length===0) {
-					for(let value in this.edges) {
-						const edge = this.edges[value];
-						await edge.loaded;
-						await edge.delete();
-					}
-					this.edges = {};
-					delete this.value;
-					await this.save();
-					return;
-				}
-				if(typeof(pathOrPattern)==="object" && !Array.isArray(pathOrPattern)) {
-					let deleted,
-						next;
-					for await (let value of this.find(pathOrPattern)) {
-						const edge = database.data.edges[value];
-						if(edge) {
-							await edge.loaded;
-							const object = edge.value;
-							if(object && typeof(object)==="object" && object["#"]) {
-								const atoms = await this.atomize(object,false);
-								for(let [id,key,value] of atoms) {
-									if(id===object["#"]) await database.data.delete([key,toEdgeValue(value),id]);
-								}
-							}
-							await edge.delete();
-							delete database.data.edges[value];
-							deleted = true;
-						}
-					}
-					if(deleted) {
-						
-						await database.data.save();
-					}
-					return;
-				} 
-				let deleted,
-					next;
-				for await (let edge of database.data.get(pathOrPattern,false)) {
-					await edge.loaded;
-					await edge.delete();
-				}
-				const id = pathOrPattern.pop();
-				for await (let edge of database.data.get(pathOrPattern,false)) {
-					if(edge.edges[id]) {
-						delete edge.edges[id];
-						await edge.save();
-					}
-				}
-				const value = pathOrPattern.pop();
-				for await (let edge of database.data.get(pathOrPattern,false)) {
-					if(edge.edges[value]) {
-						edge.edges[value].edges = {};
-						await edge.edges[value].save();
-						delete edge.edges[value];
-						
-						await edge.save();
-					}
-				}
-				if(deleted) await this.save();
-				return;
 			}
 		}
 		var database = this;
