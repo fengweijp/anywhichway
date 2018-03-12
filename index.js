@@ -130,7 +130,7 @@ const compile = string => {
 			return value;
 		}
 	},
-	toEdgeValue = value => (typeof(value)==="string" && !parseId(value) && value!=="*") ? JSON.stringify(value) : value;
+	toEdgeValue = value => typeof(value)==="string" && !parseId(value) && value!=="*" ? JSON.stringify(value) : value && typeof(value)==="object" ? value["#"] : value;
 
 async function* cartesian(head, ...tail) {
   const remaining = tail.length > 0 ? cartesian(...tail) : [[]];
@@ -709,23 +709,36 @@ class Database {
 				if(typeof(pathOrPattern)==="object" && !Array.isArray(pathOrPattern)) {
 				let deleted,
 					next;
-				for await (let value of this.find(pathOrPattern)) {
-					const classname = parseId(value["#"])[0],
-						edge = database.data.edges[classname].edges[value["#"]];
-					if(edge) {
-						/*await edge.loaded;
-						const object = edge.value;
-						if(object && typeof(object)==="object" && object["#"]) {
-							const atoms = await this.atomize(object,false);
-							for(let [id,key,value] of atoms) {
-								if(id===object["#"]) await database.data.delete([key,toEdgeValue(value),id]);
+				for await (let object of this.find(pathOrPattern)) {
+					const id = object["#"],
+						classname = parseId(id)[0],
+						edge = database.data.edges[classname].edges[id];
+					await database.storage.removeItem(edge.key);
+					for(let key in object) {
+						const value = object[key],
+							evalue = toEdgeValue(value),
+							vedge = database.data.edges[classname].edges[key].edges[evalue];
+						if(key==="^") await this.delete(value);
+						if(vedge) {
+							delete vedge.edges[id];
+							if(Object.keys(vedge.edges).length===0) { // implement running key counts to speed this up
+								await database.storage.removeItem(vedge.key);
+								delete database.data.edges[classname].edges[key].edges[evalue];
+								const kedge = database.data.edges[classname].edges[key];
+								if(Object.keys(kedge.edges).length===0) {
+									await database.storage.removeItem(edge.key);
+									delete database.data.edges[classname].edges[key];
+								} else {
+									await kedge.save();
+								}
+							} else {
+								await vedge.save();
 							}
 						}
-						await edge.delete();*/
-						delete database.data.edges[classname].edges[value["#"]];
-						await database.data.edges[classname].save();
-						deleted = true;
 					}
+					delete database.data.edges[classname].edges[id];
+					await database.data.edges[classname].save();
+					deleted = true;
 				}
 				if(deleted) {
 					await database.data.save();

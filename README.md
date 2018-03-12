@@ -385,6 +385,8 @@ Note that `outside` returns a function that take a single argument, `value`. Thi
 
 # Release History (reverse chronological order)
 
+2018-03-11 - v0.0.8a delete now working for objects, paths pending.
+
 2018-03-11 - ALPHA improved metadata support, started work on delete.
 
 2018-03-11 - ALPHA enhanced documentation, added events and instanceof support.
