@@ -1,4 +1,4 @@
-# AnyWhichWay - A key-value backed datastore supporting objects, graphs, joins, and processing pipelines.
+# AnyWhichWay - A schema optional extensible key-value backed datastore with element level security supporting query pipelines, graphs, objects, documents, and joins.
 
 AnyWhichWay is a JavaScript database that can be backed by almost any key-value store that exposes `get(key)`, `set(key,data)`, `del(key)` or similar methods synchronously or asynchronously. 
 
@@ -7,27 +7,29 @@ It is in an early ALPHA and currently supports:
 	1) Graph navigation over fully indexed data.
 
 	2) Object retrieval based on patterns.
-
-	3) Query joins.
-
-	4) Triggers for put/insert, patch/update, and delete.
-
-	5) "Smart" serialization. The database "learns" about new classes as they are inserted and restores data into appropriate class instances.
 	
-	6) A set of over 30 piped Query commands such as `first(n)`, `last(n)`, `map(f)`, `mapReduce(mapper,reducer)` , `put(object)`, `reduce(f,init)`.
+	3) Optional schema to support indexing and object validation.
 
-	7) The ability to add new compiled inline graph navigation and piped commands in as little as one line of code.
+	4) Query joins.
 
-	8) Inspection and automatic "polyfilling" of passed in storage, e.g. storage can provide `del`, `delete`, `remove`, or `removeItem`.
+	5) Triggers for put/insert, patch/update, and delete.
 
-	9) Security using graph path strings or arrays. This allows the application of security at any level desired, i.e. object, property, and even value.
+	6) "Smart" serialization. The database "learns" about new classes as they are inserted and restores data into appropriate class instances.
+	
+	7) A set of over 30 piped Query commands such as `first(n)`, `last(n)`, `map(f)`, `mapReduce(mapper,reducer)` , `put(object)`, `reduce(f,init)`.
 
-The key values stores that will not work are those that generate file names for the keys, e.g. node-localstorage. This is because the keys generated internally by AnyWhichWay are often not valid file names.
+	8) The ability to add new compiled inline graph navigation and piped commands in as little as one line of code.
 
-This version has been tested with: localStorage, Redis, idbkvstore. AnyWhichWay has built in logic to find the appropriate get, set, and delete methods.
+	9) Inspection and automatic "polyfilling" of passed in storage, e.g. storage can provide `del`, `delete`, `remove`, or `removeItem`.
+
+	10) Security using graph path strings or arrays. This allows the application of security at any level desired, i.e. object, property, and even value.
+
+The key value stores that will not work are those that generate file names for the keys, e.g. node-localstorage. This is because the keys generated internally by AnyWhichWay are often not valid file names.
+
+This version has been tested with: `localStorage`, `Redis`, `idbkvstore`. AnyWhichWay has built in logic to find the appropriate `get`, `set`, and `delete` methods.
 
 The internals of AnyWhichWay are based on asychronous generators to ensure non-blocking return of results as fast as possible. For example, the join command above yields 
-one tuple at a time rather than assembling all possible tuples before returning like one usuall does with an SQL store or even with many No-SQL databases that don't support streaming result sets.
+one tuple at a time rather than assembling all possible tuples before returning like one usually does with an SQL store or even with many No-SQL databases that don't support streaming result sets. Not only will this appear to run faster, it will consume less memory.
 
 
 # Example Capabilities
@@ -219,26 +221,26 @@ Queries are initiated using a `get`, `on`, `put`, `patch`
 		
 `forEach(f)` - Calls `f(value)` for all values.
 		
-`get(pathsOrPattern)` - See Query Patterns below.
+`get(pathOrPattern)` - See Query Patterns below.
 	
-`join(...pathsOrPatterns,test)` - Yields arrays of values combinations that satisfy `test(<combination>`. See Joins below.
+`join(...pathsOrPatterns,test)` - Yields arrays of values combinations that satisfy `test(<array combination>)`. See Joins below.
 	
 `keys()` - Yields the keys on all values that are objects. Any non-object values are not yielded.
 	
 `last(n=1)` - Only yields the last `n` values down the result chain.
 	
-`map(f)` - Yields `f(value)` for each value if receives.
+`map(f)` - Yields `f(value)` for each value it receives.
 
 `mapReduce(map,reduce)` - Behaves like MongoDB mapReduce and yields the results for each value it receives.
 
 `merge(query,where)` - Merges the values yielded by another query so long as the values satisfy `where(value)`.
 
-`on(patternOrPath,eventType,callback)` - Ads `callback` as a trigger on `patternOrPath` for the event types `put`, `patch`, `delete`. The callback is
+`on(pattern,eventType,callback)` - Ads `callback` as a trigger on `pattern` for the event types `put`, `patch`, `delete`. The callback is
 invoked with an event object of the form `{type:"put"|"patch"|"delete",target:object,key:string,value:<any value>}`.
 
 `pop(f)` - Pulls the first value and does not yield it. If `f` is not null calls `f(value)` with the popped value.
 	
-`provide(...values)` - Yields no values except those in `values`.
+`provide(...values)` - Yields no values except those in `values`. Effectively replaces the result chain.
 	
 `push(value)` - Yields `value` into the front of the results.
 
@@ -252,7 +254,7 @@ invoked with an event object of the form `{type:"put"|"patch"|"delete",target:ob
 
 `reset()` - Abandons any queued commands.
 
-`reverse()` - Yields results in revers order.
+`reverse()` - Yields results in reverse order.
 
 `secure(path,security)` - Adds security to the path. See the section on Security.
 
@@ -262,9 +264,9 @@ invoked with an event object of the form `{type:"put"|"patch"|"delete",target:ob
 
 `shift(f)` - Does not yield the last value. If `f` is not null, calls `f(value)` with the last value.
 
-`some(f)` - Yields all values so long as some value satisfies `f(value).
+`some(f)` - Yields all values so long as some value satisfies `f(value)`.
 
-`sort(f)` - Yields values in sorted order based on `f`. If `f` in undefined, yields in alpha sorted order.
+`sort(f)` - Yields values in sorted order based on `f`. If `f` is undefined, yields in alpha sorted order.
 
 `splice(start,deleteCount,...items)` - Yields `items` values after values up to `start` have been yielded and up to `deleteCount` items have not been yielded.
 
@@ -296,13 +298,13 @@ invoked with an event object of the form `{type:"put"|"patch"|"delete",target:ob
 
 `nin(testValue)` - Yields values where `testValue.indexOf(value)===-1` so it works on strings and arrays.
 
-`not(f)` - Yields values where `!f(value))` is truthy.
+`not(f)` - Yields values where `!f(value)` is truthy.
 
 # Query Patterns
 
 Query patterns are objects. If the query pattern is an instance of a specific kind of object, then only those kinds of objects will be matched.
 
-Property values in query patterns may be literals or functions that return the value being tested or 'undefined' if they should fail. This behavior may change to a boolean with a BETA release.
+Property values in query patterns may be literals or functions that return the value being tested or `undefined` if they should fail. It is necessary to return `undefined` because `false` might actually be the value of a property.
 
 ```javascript
 mydb.get({age:value => value > 27 || undefined,address:{state:WA},instanceof:Person}).all(); // yield all Person's over 27 in the state of Washington.
@@ -310,18 +312,24 @@ mydb.get({age:value => value > 27 || undefined,address:{state:WA},instanceof:Per
 
 # Joins
 
+`join(...pathsOrPatterns,test)` - Yields arrays of values combinations that satisfy `test(<array combination>)`. 
 
+By convention you should destructure the argument to test. The example below will only yield combinations where the names are identical:
+
+```javascript
+([object1,object2]) => object1.name && object2.name && object1.name===object2.name);
+```
 
 
 # Metadata
 
-The signature of metadata is: `{created:Date,updated:Date,createdBy:uuidv4,updatedBy:uuidv4,expires:Date,lifespan:milliseconds}`.
+The signature of metadata is: `{created:Date,updated:Date,expires:Date,lifespan:milliseconds}`.
 
 With the exception of Dates, unique object uuidv4 ids are stored on objects themselves rather than in metadata. Their signature is: `<classname>@<uuidv4>`.
 
 Dates have the id signature `Date@<milliseconds>`.
 
-Note:  Automatic delettion upon expiration is not yet supported.
+Note:  Automatic deletion upon expiration is not yet supported.
 
 
 # Security
@@ -380,12 +388,14 @@ function outside(b1,b2) {
 const db = new Database(store,{tests:{outside}});
 ```
 
-Note that `outside` returns a function that take a single argument, `value`. This function is invoked by AnyWhichWay with the current value of the data item being tested.
+Note: The function `outside` returns a function that take a single argument, `value`. This function is invoked by AnyWhichWay with the current value of the data item being tested. Also, unlike inline tests, predicates do not have to return `undefined` if they fail, this is handled internally by AnyWhichWay.
 			
 
 # Release History (reverse chronological order)
 
-2018-03-11 - v0.0.8a delete now working for objects, paths pending.
+2018-03-12 - ALPHA v0.0.9a enhanced documentation.
+
+2018-03-11 - ALPHA v0.0.8a delete now working for objects, paths pending.
 
 2018-03-11 - ALPHA improved metadata support, started work on delete.
 

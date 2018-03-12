@@ -1,7 +1,7 @@
 {
 	"name": "anywhichway",
-  	"version": "0.0.8a",
-  	"description": "An extensible key-value backed datastore with element level security supporting processing pipelines, graphs, objects, documents, and joins with or without schema.",
+  	"version": "0.0.9a",
+  	"description": "A schema optional extensible key-value backed datastore with element level security supporting query pipelines, graphs, objects, documents, and joins.",
 	"private": false,
 	"scripts": {
 		"start": "node app.js"
