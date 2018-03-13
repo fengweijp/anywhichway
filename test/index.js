@@ -28,7 +28,7 @@ if(store.on) {
 
 
 const perf = [],
-	db0 = new Database(store,{inline:true,promisify:(redis ? true : false)}),
+	db0 = new Database(store,{inline:true,expirationInterval:10*1000,promisify:(redis ? true : false)}),
 	noperf = true,
 	cycles = 500;
 db0.storage.clear();
@@ -55,12 +55,13 @@ Car.schema = {
 		brand: (value) => typeof(value)==="string",
 		model: (value) => typeof(value)==="string"
 }
-const c1 = new Car({brand:"Audi",model:"A4"});
+const c1 = new Car({brand:"Audi",model:"A4"}),
+	c2 = new Car({brand:"Ford",model:"Expedition"});
 
 
 
 const init = db0.query().put({enrolled:new Date("August 19, 1975 23:15:30"),age:27,name:"Joe",secret:"wink!",SSN:"999-99-9999",car:c1})
-	.put({name:"John",secret:"wink!",SSN:"999-99-9999",address:{city:"Seattle",zipcode:{base:98101,plus4:0001}}})
+	.put({name:"John",secret:"wink!",SSN:"999-99-9999",address:{city:"Seattle",zipcode:{base:98101,plus4:0001}},car:c2})
 	.put({name:"John",age:29,secret:"wink!",SSN:"999-99-9999"}).all();
 db0.register(Date,Date.name,true);
 db0.register(Car);
@@ -82,7 +83,7 @@ describe("Test",function () {
 				expect(e).to.be.instanceof(Error);
 			});
 	});
-	it(` db0.query().put(new Car({brand:"Jaguar",model:"XK8"}),now).get("Metadata/expires/gte(${now})",true).all()`,function(done) {
+	it(` db0.query().put(new Car({brand:"Jaguar",model:"XK8"}),now).get("Metadata/expires/gte(${now})").all()`,function(done) {
 		const test  = eval("()=>"+this.test.title.substring(1));
 		test()
 			.then(result => {
@@ -90,7 +91,7 @@ describe("Test",function () {
 				perf.push({name:this.test.title,fn:test})})
 			.catch(e => done(e))
 	});
-	it(` db0.query().delete({brand:"Jaguar",model:"XK8",instanceof:"Car"}).all()`,function(done) {
+	it(` db0.query().delete({brand:"Ford",instanceof:"Car"}).all()`,function(done) {
 		const test  = eval("()=>"+this.test.title.substring(1));
 		test()
 			.then(result => {
@@ -241,7 +242,7 @@ describe("Test",function () {
 				benchmark({name:this.test.title,fn:test});})
 			.catch(e => done(e))
 	});
-	it(`# db0.query().get({age:(value) => value > 27 ? value : undefined}).all()`,function (done) { 
+	it(`# db0.query().get({age:(value) => value > 27}).all()`,function (done) { 
 		const test  = eval("()=>"+this.test.title.substring(1));
 		test()
 			.then(result => { 
@@ -252,7 +253,7 @@ describe("Test",function () {
 				benchmark({name:this.test.title,fn:test});})
 			.catch(e => done(e))
 	});
-	it(`# db0.query().get('*/age/(value) => value > 27 ? value : undefined').all()`,function (done) { 
+	it(`# db0.query().get('*/age/(value) => value > 27').all()`,function (done) { 
 		const test  = eval("()=>"+this.test.title.substring(1));
 		test()
 			.then(result => {

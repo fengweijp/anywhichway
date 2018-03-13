@@ -231,7 +231,7 @@ class Query {
 		});
 		return this;
 	}
-	delete(pathOrPatternOrId,ctor = pathOrPatternOrId ? pathOrPatternOrId.instanceof : undefined) {
+	delete(pathOrPatternOrId,ctor = pathOrPatternOrId && typeof(pathOrPatternOrId)==="object" ? pathOrPatternOrId.instanceof : undefined) {
 		if(ctor) {
 			if(typeof(ctor)==="string") {
 				ctor = this.database.constructors[ctor];
@@ -242,10 +242,16 @@ class Query {
 		if(pathOrPatternOrId && typeof(pathOrPatternOrId)==="object") {
 			Object.defineProperty(pathOrPatternOrId,"isPattern",{enumerable:false,configurable:true,writable:true,value:true})
 		}
-		this.command.push(() =>
-			this.database.data.delete(pathOrPatternOrId)
+		this.command.push(data =>
+			this.database.data.delete(pathOrPatternOrId||data)
 		);
 		return this;
+	}
+	async exec() {
+		for(let command of this.command) {
+			if(command.name==="collect") this.command = command(this.command);
+		}
+		for await (let item of await pipe(this.command)) { ; }
 	}
 	every(f) {
 		this.collect();
@@ -705,11 +711,18 @@ class Database {
 				}
 				return json;
 			}
-			async delete(pathOrPattern) {
-				if(typeof(pathOrPattern)==="object" && !Array.isArray(pathOrPattern)) {
+			async delete(pathOrPatternOrId) {
+				const type = typeof(pathOrPatternOrId);
+				let target = pathOrPatternOrId;
+				if(type==="string") {
+					target = Object.assign({},await database.getObject(pathOrPatternOrId));
+					Object.defineProperty(target,"isPattern",{enumerable:false,configurable:true,writable:true,value:true});
+				}
+				if(typeof(target)==="object" && !Array.isArray(target)) {
 				let deleted,
 					next;
-				for await (let object of this.find(pathOrPattern)) {
+				const source = (type==="string" ? [target] : this.find(target));
+				for await (let object of source) {
 					const id = object["#"],
 						classname = parseId(id)[0],
 						edge = database.data.edges[classname].edges[id];
@@ -718,7 +731,7 @@ class Database {
 						const value = object[key],
 							evalue = toEdgeValue(value),
 							vedge = database.data.edges[classname].edges[key].edges[evalue];
-						if(key==="^") await this.delete(value);
+						if(key==="^") await this.delete(value["#"]);
 						if(vedge) {
 							delete vedge.edges[id];
 							if(Object.keys(vedge.edges).length===0) { // implement running key counts to speed this up
@@ -909,7 +922,7 @@ class Database {
 							}
 							return;
 						} else if(key.indexOf("(")>=0) {
-							const fname = key.substring(0,key.indexOf("(")); // swicth to RegExp
+							const fname = key.substring(0,key.indexOf("(")); // switch to RegExp
 							const test = database.tests[fname];
 							if(test) {
 								let testvalue =  toValue(key.substring(key.indexOf("(")+1,key.indexOf(")")));
@@ -934,7 +947,7 @@ class Database {
 							const test = key;
 							for(let value in this.edges) {
 								let totest = (parseId(value) ? await database.getObject(value) : toValue(value));
-								if(test(totest)!==undefined) {
+								if(test(totest)) { // !==undefined
 									if(!this.edges[value].loaded) {
 										this.edges[value] = new Graph(`${this.key}/${value}`,toValue(value),put);
 										await this.edges[value].loaded;
@@ -1214,6 +1227,7 @@ class Database {
 		var database = this;
 		this.storage = storage;
 		this.options = Object.assign({},options);
+		if(!this.options.expirationInterval) this.options.expirationInterval = 30*60*1000;
 		this.constructors = {};
 		this.schema = {};
 		this.register(Object);
@@ -1259,6 +1273,8 @@ class Database {
 		this.data.isRoot = true;
 		this.security = new Graph("security");
 		this.security.isRoot = true;
+		
+		this.expire();
 	}
 	async deserialize(data) {
 		const type = typeof(data);
@@ -1286,6 +1302,22 @@ class Database {
 		}
 		return data;
 	}
+	async expire() {
+		const expireData = async () => {
+			if(this.options.expirationInterval>0) {
+				const start = Date.now();
+				await this.query().get(`Metadata/expires/lte(${start})`).map(metadata => metadata.subject).delete().exec();
+				const end = Date.now(),
+					duration = end - start;
+					if(duration>=this.options.expirationInterval) {
+						this.expire();
+					} else {
+						setTimeout(() => this.expire(),this.options.expirationInterval-duration);
+					}
+			}
+		}
+		expireData();
+	}
 	getEdge(path,root="data") {
 		const parts = Array.isArray(path) ? path.slice() : path.split("/");
 		let part,
@@ -1307,8 +1339,8 @@ class Database {
 		}
 		const returnValue = (value ? Object.assign(Object.create(ctor.prototype),value) : value),
 		storedValue = (value ? Object.assign(Object.create(ctor.prototype),value) : value);
-		returnValue.constructor = ctor;
-		storedValue.constructor = ctor;
+		Object.defineProperty(returnValue,"constructor",{enumerable:false,configurable:true,writable:true,value:ctor});
+		Object.defineProperty(storedValue,"constructor",{enumerable:false,configurable:true,writable:true,value:ctor});
 		Object.freeze(storedValue);
 		for(let cname in this.security.edges) {
 			if(cname==="\\*" || cname==="\\"+classname) {
