@@ -4,27 +4,27 @@ AnyWhichWay is a JavaScript database that can be backed by almost any key-value 
 
 It is in an early ALPHA and currently supports:
 
-	1) Graph navigation over fully indexed data.
+1) Graph navigation over fully indexed data.
 
-	2) Object retrieval based on patterns.
+2) Object retrieval based on patterns.
 	
-	3) Optional schema to support indexing and object validation.
+3) Optional schema to support indexing and object validation.
 
-	4) Query joins.
+4) Query joins.
 
-	5) Triggers for put/insert, patch/update, and delete.
+5) Triggers for put/insert, patch/update, and delete.
 
-	6) "Smart" serialization. The database "learns" about new classes as they are inserted and restores data into appropriate class instances.
+6) "Smart" serialization. The database "learns" about new classes as they are inserted and restores data into appropriate class instances.
 	
-	7) Over 30 piped query commands such as `first(n)`, `last(n)`, `map(f)`, `mapReduce(mapper,reducer)` , `put(object)`, `reduce(f,init)`.
+7) Over 30 piped query commands such as `first(n)`, `last(n)`, `map(f)`, `mapReduce(mapper,reducer)` , `put(object)`, `reduce(f,init)`.
 
-	8) Custom graph navigation and piped commands in as little as one line of code.
+8) Custom graph navigation and piped commands in as little as one line of code.
 
-	9) Inspection and automatic "polyfilling" of passed in storage, e.g. storage can provide `del`, `delete`, `remove`, or `removeItem`.
+9) Inspection and automatic "polyfilling" of passed in storage, e.g. storage can provide `del`, `delete`, `remove`, or `removeItem`.
 
-	10) Security using graph path strings or arrays. This allows the application of security at any level desired, i.e. object, property, and even value.
+10) Security using graph path strings or arrays. This allows the application of security at any level desired, i.e. object, property, and even value.
 	
-	11) Automatic data expiration using durations or specific dates.
+11) Automatic data expiration using durations or specific dates.
 
 The key value stores that will not work are those that generate file names for the keys, e.g. node-localstorage. This is because the keys generated internally by AnyWhichWay are often not valid file names.
 
@@ -432,9 +432,9 @@ Note: The function `outside` returns a function that take a single argument, `va
 
 # Release History (reverse chronological order)
 
-2018-03-13 - ALPHA v0.0.10a enhanced documentation, added auto expiration, published to NPM
+2018-03-13 - ALPHA v0.0.10a enhanced documentation, added auto expiration, published to NPM.
 
-2018-03-12 - ALPHA v0.0.9a enhanced documentation.
+2018-03-12 - ALPHA v0.0.9a enhanced documentation, published to NPM.
 
 2018-03-11 - ALPHA v0.0.8a delete now working for objects, paths pending.
 
