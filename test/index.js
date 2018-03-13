@@ -7,8 +7,6 @@ if(typeof(window)==="undefined") {
 	chai = require("chai");
 	expect = chai.expect;
 	Database = require("../index.js");
-	const LocalStorage = require('node-localstorage').LocalStorage;
-	localStorage = new LocalStorage('./scratch');
 	redis = require("redis");
 }
 
@@ -363,7 +361,52 @@ describe("Test",function () {
 				this.test.title += " = " + JSON.stringify(result);
 				benchmark({name:this.test.title,fn:test});})
 			.catch(e => done(e))
-	}); 
+	});
+	it(` db0.query().provide({name:"Joe",age:26}).render("Hello \${name}!").all()`,function (done) {
+		const test =  eval("()=>"+this.test.title.substring(1));
+		test()
+			.then(result => {
+				expect(result.length).to.equal(1);
+				expect(result[0].string).to.equal("Hello Joe!");
+				this.test.title += " = " + JSON.stringify(result);
+				done()})
+			.catch(e => done(e))
+	});
+	it(` db0.query().provide({name:"Joe",age:26}).assign({age:27}).all()`,function (done) {
+		const test =  eval("()=>"+this.test.title.substring(1));
+		test()
+			.then(result => {
+				expect(result.length).to.equal(1);
+				expect(result[0].name).to.equal("Joe");
+				expect(result[0].age).to.equal(27);
+				this.test.title += " = " + JSON.stringify(result);
+				done()})
+			.catch(e => done(e))
+	});
+	it(` db0.query().provide({name:"Joe",age:26}).fork(function(){ this.forEach(value => console.log(value))},function(){ this.forEach(value => console.log(value))}).all()`,function (done) {
+		const test =  eval("()=>"+this.test.title.substring(1));
+		test()
+			.then(result => {
+				expect(result.length).to.equal(1);
+				expect(result[0].name).to.equal("Joe");
+				expect(result[0].age).to.equal(26);
+				this.test.title += " = " + JSON.stringify(result);
+				done()})
+			.catch(e => done(e))
+	});
+	it(` db0.query().provide({name:"Joe",gender:"m"}).default({age:27,gender:"u"}).all()`,function (done) {
+		let passed;
+		const test =  eval("()=>"+this.test.title.substring(1));
+		test()
+			.then(result => {
+				expect(result.length).to.equal(1);
+				expect(result[0].name).to.equal("Joe");
+				expect(result[0].age).to.equal(27);
+				expect(result[0].gender).to.equal("m");
+				this.test.title += " = " + JSON.stringify(result);
+				done()})
+			.catch(e => done(e))
+	});
 	it(` db0.query().provide(1,2,3,3,4,5,6,6).all()`,function (done) { 
 		const test =  eval("()=>"+this.test.title.substring(1));
 		test()
@@ -402,6 +445,7 @@ describe("Test",function () {
 				done()})
 			.catch(e => done(e))
 	});
+
 	it(` db0.query().provide(1,2,3,3,4,5,6,6).when(value => value===5,() => passed = true).all()`,function (done) {
 		let passed;
 		const test  = () => db0.query().provide(1,2,3,3,4,5,6,6).when(value => value===5,() => passed = true).all();

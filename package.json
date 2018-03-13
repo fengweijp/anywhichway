@@ -1,19 +1,23 @@
 {
 	"name": "anywhichway",
-  	"version": "0.0.10a",
+  	"version": "0.0.11a",
   	"description": "A schema optional extensible key-value backed datastore with element level security supporting query pipelines, graphs, objects, documents, and joins.",
 	"private": false,
 	"scripts": {
 		"start": "node app.js"
 	},
+	 "license": "MIT",
+	  "repository": {
+	    "type": "git",
+	    "url": "git+https://github.com/anywhichway/anywhichway.git"
+	  },
 	"dependencies": {
-		"@babel/polyfill": "^7.0.0-beta.40"
+		"node-fetch": "^1.7.1"
 	},
 	"devDependencies": {
 		"chai": "^4.1.0",
 		"idb-kv-store": "^4.3.1",
 		"mocha": "^3.4.2",
-		"node-fetch": "^1.7.1",
 		"node-localstorage": "^1.3.0",
 		"redis": "^2.8.0"
 	},

@@ -207,6 +207,10 @@ class Query {
 		}
 		return this.results;
 	}
+	assign(object) {
+		this.command.push(data => Object.assign(data,object));
+		return this;
+	}
 	concat(...values) {
 		this.collect();
 		this.command.push(function*(data) {
@@ -229,6 +233,10 @@ class Query {
 				}
 			].concat(command.slice(length+1));
 		});
+		return this;
+	}
+	default(object) {
+		this.command.push(data => { for(let key in object) { if(data[key]===undefined) data[key] = object[key]; }; return data; });
 		return this;
 	}
 	delete(pathOrPatternOrId,ctor = pathOrPatternOrId && typeof(pathOrPatternOrId)==="object" ? pathOrPatternOrId.instanceof : undefined) {
@@ -260,6 +268,16 @@ class Query {
 		);
 		return this;
 	}
+	fetch(url,options,done) {
+		if(arguments.length) {
+			this.command.push(async ({url,options,done}) => { if(done) return done(await fetch(url,options)); fetch(url,options); return data; });
+		} else if(done) {
+			this.command.push(async data => { const config = Object.assign({},options); config.body = JSON.stringify(data); return done(await fetch(url,options)) });
+		} else {
+			this.command.push(data => { const config = Object.assign({},options); config.body = JSON.stringify(data); fetch(url,options); return data; });
+		}
+		return this;
+	}
 	filter(f) {
 		this.command.push(data => 
 			f(data) ? data : undefined
@@ -280,7 +298,17 @@ class Query {
 		return this;
 	}
 	forEach(f) {
-		this.command.push(data => { f(data); return data;} );
+		let i = 0;
+		this.command.push(data => { f(data,i++); return data;} );
+		return this;
+	}
+	fork(...queries) {
+		for(let query of queries) {
+			const fork = this.database.query();
+			query.call(fork);
+			fork.merge(this,null,true);
+			fork.all();
+		}
 		return this;
 	}
 	get(pathOrPattern,edgeOnly,ctor = pathOrPattern ? pathOrPattern.instanceof : undefined) {
@@ -327,7 +355,8 @@ class Query {
 		return this;
 	}
 	map(f) {
-		this.command.push(data => f(data));
+		let i = 0;
+		this.command.push(data => f(data,i++));
 		return this;
 	}
 	mapReduce(map,reduce) {
@@ -347,13 +376,12 @@ class Query {
 		})
 		return this;
 	}
-	merge(query,where) {
+	merge(query,where,copy) {
 		this.command.push(async function*(data) {
-			const values = query.all();
+			const values = await query.all(),
 				record = (Array.isArray(data) ? data : [data]);
-			record.slice().push(value);
 			for(let value of values) {
-				if(!where || where(record)) yield record;
+				if(!where || where(record)) yield (copy ? record.slice() : record);
 			}
 		});
 		return this;
@@ -415,6 +443,10 @@ class Query {
 		this.command.push(data => data.reduceRight(f,initial));
 		return this;
 	}
+	render(template) {
+		this.command.push(data => { return {value:data,string:Function("data","with(data) { return `" + template + "`}")(data)}})
+		return this;
+	}
 	reset() {
 		delete this.results();
 	}
@@ -439,15 +471,13 @@ class Query {
 		});
 		return this;
 	}
-	seen(f,first) {
+	seen(f) {
 		const seen = [];
-		let once;
 		this.command.push(data => { 
 			if(!seen.includes(data)) {
-				if(!first || !once) f(data);
-				once = true;
+				seen.push(data);
+				f(data);
 			}
-			seen.push(data);
 		});
 	}
 	slice(begin,end) {

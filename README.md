@@ -1,6 +1,8 @@
-# AnyWhichWay - A schema optional extensible key-value backed datastore with element level security supporting query pipelines, graphs, objects, documents, and joins.
+# AnyWhichWay
 
-AnyWhichWay is a JavaScript database that can be backed by almost any key-value store that exposes `get(key)`, `set(key,data)`, `del(key)` or similar methods synchronously or asynchronously. 
+A JavaScript schema optional extensible key-value backed datastore with element level security supporting query pipelines, graphs, objects, documents, and joins.
+
+AnyWhichWay can be backed by almost any key-value store that exposes `get(key)`, `set(key,data)`, `del(key)` or similar methods synchronously or asynchronously. 
 
 It is in an early ALPHA and currently supports:
 
@@ -62,7 +64,7 @@ one tuple at a time rather than assembling all possible tuples before returning 
 	
 3) Object joins supporting:
 
-	a) patterns, e.g. `join({instanceOf:Guest},{instanceOf:Guest},([guest1,guest2]) => guest1["#"]!=guest2["#"] ? [guest1,guest2] : false)` retrieves all possible Guest pairs
+	a) patterns, e.g. `join({instanceof:Guest},{instanceof:Guest},([guest1,guest2]) => guest1["#"]!=guest2["#"] ? [guest1,guest2] : false)` retrieves all possible Guest pairs
 	
 	b) paths, e.g. `join("Object/age/*","Object/age/*",([a,b]) => a.age && b.age && a.age!==b.age ? [a,b] : false)` retrieves all pairs of differently aged Objects
 	
@@ -253,9 +255,13 @@ Queries are initiated using `<db>.query()`.
 
 `all()` - Yields the values of a query as an array.
 
+`assign(object)` - Augments the passed value (which must be an object), the same way the `Object.assign(value,object)` works, and yields the result.
+
 `concat(...args)` - Adds the `args` to the end of the yielded query results.
 	
 `collect()` - Collects values into an array.
+
+`default(object)` - Works similar to `aasign` except only sets properties that do not already exist.
 
 `delete(pathOrPatternOrId)` - Deletes the specified item. Or, if no argument is provided, deletes the item yielded by the previous step in the query.
 
@@ -263,11 +269,15 @@ Queries are initiated using `<db>.query()`.
 
 `every(f)` - Yields all values so long as every value satifies `f(value)`.
 
+`fetch(url,options,done)` - If arguments are provided, fetches the url with the provided options using the value it is passed as the `body`. If `done` is provided as a function, calls `done` with the response and yields the result of that, usually `response.json()`. Otherwise, yields the value it was passed. If no arguments are provided, assumes the passed value will be an object of the form `{url,options[,done]}`.
+
 `filter(f)` - Only yields values for which `f(value)` returns truthy.
 		
 `first(n=1)` - Only yields the first `n` values down the result chain.
 		
-`forEach(f)` - Calls `f(value)` for all values.
+`forEach(f)` - Calls `f(value,index)` for all values.
+
+`fork(...queryFragmentFunctions)` - creates multiple yiled streams with copies of the value passed to `fork`.
 		
 `get(pathOrPattern)` - See Query Patterns below.
 	
@@ -277,7 +287,7 @@ Queries are initiated using `<db>.query()`.
 	
 `last(n=1)` - Only yields the last `n` values down the result chain.
 	
-`map(f)` - Yields `f(value)` for each value it receives.
+`map(f)` - Yields `f(value,index)` for each value it receives.
 
 `mapReduce(map,reduce)` - Behaves like MongoDB mapReduce and yields the results for each value it receives.
 
@@ -299,7 +309,9 @@ only 'put' is supported.
 	
 `reduce(f,initial)` - Yields the result of `<all values>.reduce(f,initial)`.
 
-`reduceRight(f,initial)` Yields the result of `<all values>.reduceRight(f,initial)`.
+`reduceRight(f,initial)` - Yields the result of `<all values>.reduceRight(f,initial)`.
+
+`render(template)` - Renders each value provided into the `template` and yields `{value,string}`. The `template` should use JavaScript template literal type substitution. The scope is bound to the value passed in.
 
 `reset()` - Abandons any queued commands.
 
@@ -307,7 +319,7 @@ only 'put' is supported.
 
 `secure(path,security)` - Adds security to the path. See the section on Security.
 
-`seen(f,first)` -
+`seen(f)` - Calls `f(value)` once for each unique value received but yields all values.
 
 `slice(begin,end)` - Yields just the values between the index `begin` and `end`.
 
@@ -363,7 +375,7 @@ By convention you should destructure the argument to test. The example below wil
 
 # Metadata
 
-The signature of metadata is: `{created:Date,updated:Date,expires:Date,lifespan:milliseconds}`.
+The signature of metadata is: `{created:Date,updated:Date,expires:Date,duration:milliseconds}`.
 
 With the exception of Dates, unique object uuidv4 ids are stored on objects themselves rather than in metadata. Their signature is: `<classname>@<uuidv4>`.
 
@@ -431,6 +443,8 @@ Note: The function `outside` returns a function that take a single argument, `va
 			
 
 # Release History (reverse chronological order)
+
+2018-03-13 - ALPHA v0.0.11a enhanced documentation, added `assign`, `default`, `fetch`, `fork`.
 
 2018-03-13 - ALPHA v0.0.10a enhanced documentation, added auto expiration, published to NPM.
 
