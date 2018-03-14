@@ -32,6 +32,8 @@ The key value stores that will not work are those that generate file names for t
 
 This version has been tested with: `localStorage`, `Redis`, `idbkvstore`. AnyWhichWay has built in logic to find the appropriate `get`, `set`, and `delete` methods.
 
+Note: `idbkvstore` is currently very slow for `put`. In fact, things will run faster against a remote Redis store.
+
 The internals of AnyWhichWay are based on asychronous generators to ensure non-blocking return of results as fast as possible. For example, the join command above yields 
 one tuple at a time rather than assembling all possible tuples before returning like one usually does with an SQL store or even with many No-SQL databases that don't support streaming result sets. Not only will this appear to run faster, it will consume less memory.
 
@@ -58,7 +60,7 @@ one tuple at a time rather than assembling all possible tuples before returning 
 
 	a) exact matching, e.g. `get({email:"jsmith@somewhere.com"},Person)` retrieves the Person with the provided e-mail.
 	
-	b) tests, e.g. `get({age:value => value > 27 ? value : undefined,name:"Joe"},Person)` retrieves all Persons over 27 with name "Joe".
+	b) tests, e.g. `get({age:value => value > 27 ? value,name:"Joe"},Person)` retrieves all Persons over 27 with name "Joe".
 	
 	c) coerced classes, e.g. `get({email:"jsmith@somewhere.com", instanceof:"Person"})` retrieves the Person with the provided e-mail.
 	
@@ -106,7 +108,7 @@ The property "#" is the default used for unique uuidv4 ids on objects in AnyWhic
 
 The property "^" is the default used for object metadata. See the section Metadata for more info.
 
-# Starting The Database
+# Starting A Database
 
 Databases are instantiated with 2 arguments, a storage instance and and options object.
 
@@ -129,7 +131,7 @@ The options object supports the following:
 
 `inline` - A boolean flag indicating whether or not to support and compile inline functions in graph paths. Warning: This opens up a code injection risk.
 
-`expirationInterval` - The number of milliseconds between each scan and deletion of expiring data. The default is 30 minutes, i.e. 30*60*1000. If <= 0, auto expiration is turned off. This can be changed at any time.
+`expirationInterval` - The number of milliseconds between each scan and deletion of expiring data. The default is 30 minutes, i.e. `30*60*1000`. If <= 0, auto expiration is turned off. This can be changed at any time.
 
 `promisify` - Tells the database that the passed in storage uses callbacks that will need to be wrapped with Promises.
 
@@ -137,7 +139,7 @@ The options object supports the following:
 
 # Storing Data
 
-To store an object and have it indexed, just use 'put(object)` at the root level, e.g.
+To store an object and have it indexed, just use 'put(object)`, e.g.
 
 ```javascript
 mydb.query().put({name:"Joe",age:27}).exec(); // inserts an Object
@@ -145,7 +147,7 @@ mydb.query().put({name:"Joe",age:27}).exec(); // inserts an Object
 const p = new Person({name:"Joe",age:27});
 mydb.query().put({name:"Joe",age:27}).exec(); // inserts a Person
 
-mydb.query().put({name:"Joe",age:27,instanceof:Person}).exec(); // inserts a Person by coercing the data
+mydb.query().put({name:"Joe",age:27,instanceof:"Person"}).exec(); // inserts a Person by coercing the data
 
 ```
 
@@ -303,7 +305,7 @@ only 'put' is supported.
 	
 `push(value)` - Yields `value` into the front of the results.
 
-`put(object,expiration)` - Inserts `object` into the database. If expiration is a number it is a duration and auto increments every time the object is updated. If it is a Date, the expiration is fixed.
+`put(object,expiration,skip)` - Inserts `object` into the database. If expiration is a number it is a duration and auto increments every time the object is updated. If it is a Date, the expiration is fixed. If `skip` is true, the `object` is not yielded as part of the results.
 
 `random(float)` - Yields a random percentage of the values it is passed.
 	
@@ -443,6 +445,8 @@ Note: The function `outside` returns a function that take a single argument, `va
 			
 
 # Release History (reverse chronological order)
+
+2018-03-14 - ALPHA v0.0.13a fixed some string escape issues for `idbkvstore`.
 
 2018-03-13 - ALPHA v0.0.12a enhanced documentation
 

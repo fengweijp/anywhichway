@@ -44,7 +44,8 @@ const uuidv4 = () => {
 }
 
 const compile = string => {
-		if(!typeof(string)==="string") return string;
+		if(typeof(string)!=="string" || string.indexOf("(")===-1) return string;
+		//if(string[0]==="\\") string = string.substring(1)
 		try {
 			const value = new Function("return " + string).call(null);
 			if(typeof(value)!=="function" && value!==string) return string;
@@ -444,9 +445,9 @@ class Query {
 		});
 		return this;
 	}
-	put(data,expires) {
+	put(data,expires,skip) {
 		const root = this.database.data;
-		this.command.push(async function() { root.put(data,expires); return data; });
+		this.command.push(async function(value) { await root.put(data,expires); if(!skip) { if(value===undefined) { value = [] } else if(!Array.isArray(value)) { value = [value]; } value.push(data); } return value; });
 		return this;
 	}
 	random(portion) {
@@ -488,6 +489,7 @@ class Query {
 		this.command.push(async function*(edge) {
 			for await (let next of root.get(parts,true,undefined,true)) {
 				next.value = security;
+				//await next.save();
 				next.save();
 			}
 			yield edge||root;
@@ -975,7 +977,7 @@ class Database {
 							}
 							return;
 						} else if(key.indexOf("(")>=0) {
-							const fname = key.substring(0,key.indexOf("(")); // switch to RegExp
+							const fname = key.substring(key[0]==="\\" ? 1 : 0,key.indexOf("(")); // switch to RegExp
 							const test = database.tests[fname];
 							if(test) {
 								let testvalue =  toValue(key.substring(key.indexOf("(")+1,key.indexOf(")")));

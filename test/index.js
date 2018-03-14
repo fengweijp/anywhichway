@@ -10,14 +10,12 @@ if(typeof(window)==="undefined") {
 	redis = require("redis");
 }
 
-//const store = localStorage,
-
 let store = (redis ? redis.createClient({
 	host:"redis-15154.c10.us-east-1-3.ec2.cloud.redislabs.com",
 	port:15154,
 	password:process.env.PWD,
 	no_ready_check:true}) : localStorage);
-//store = new IdbKvStore("scratch");
+//redis || (store = new IdbKvStore("scratch"));
 
 if(store.on) {
 	store.on("error",error => console.log(error))
@@ -26,7 +24,7 @@ if(store.on) {
 
 
 const perf = [],
-	db0 = new Database(store,{inline:true,expirationInterval:10*1000,promisify:(redis ? true : false)}),
+	db0 = new Database(store,{inline:true,expirationInterval:10*1000,promisify:(redis ? true : false),tests:{isSSN:() => value => (new RegExp('^\\d{3}-?\\d{2}-?\\d{4}$')).test(value)}}),
 	noperf = true,
 	cycles = 500;
 db0.storage.clear();
@@ -88,7 +86,7 @@ describe("Test",function () {
 				done();
 				perf.push({name:this.test.title,fn:test})})
 			.catch(e => done(e))
-	});
+	}).timeout(4000);
 	it(` db0.query().delete({brand:"Ford",instanceof:"Car"}).all()`,function(done) {
 		const test  = eval("()=>"+this.test.title.substring(1));
 		test()
@@ -104,15 +102,16 @@ describe("Test",function () {
 				done();
 				perf.push({name:this.test.title,fn:test})})
 			.catch(e => done(e))
-	});
-	it(`mask all SNN secure(["*","*",(value) => (new RegExp('^\\d{3}-?\\d{2}-?\\d{4}$')).test(value)],(action,returnValue,storedValue,key) => {  returnValue[key]="***-**-****"; return true;  })`,function(done) {
+	}).timeout(4000);
+	it(`mask all SNN secure(["Object","*",(value) => (new RegExp('^\\d{3}-?\\d{2}-?\\d{4}$')).test(value)],(action,returnValue,storedValue,key) => {  returnValue[key]="***-**-****"; return true;  })`,function(done) {
+		//let test = () => db0.query().secure(`Object/*/isSSN()`,(action,returnValue,storedValue,key) => { returnValue[key]="***-**-****"; return true; }).all();
 		let test = () => db0.query().secure(["Object","*",(value) => (new RegExp('^\\d{3}-?\\d{2}-?\\d{4}$')).test(value)],(action,returnValue,storedValue,key) => { returnValue[key]="***-**-****"; return true; }).all();
 		test()
 			.then(result => {
 				done();
 				perf.push({name:this.test.title,fn:test})})
 			.catch(e => done(e))
-	});
+	}).timeout(4000);
 	it(`_ db0.query().get("Object/#/*").all()`,function(done) {
 		const test  = eval("()=>"+this.test.title.substring(1));
 		test()
@@ -184,11 +183,11 @@ describe("Test",function () {
 		test()
 			.then(result => {
 				expect(result.length).to.equal(2);
-				this.test.title = test + " = " + JSON.stringify(result);
+				this.test.title = test + " = " + (result ? JSON.stringify(result) : result);
 				done(); 
 				benchmark({name:this.test.title,fn:test});})
 			.catch(e => done(e))
-	});
+	}).timeout(4000);
 	it(`# db0.query().get("*/age").all()`,function (done) { 
 		const test  = eval("()=>"+this.test.title.substring(1));
 		test()
