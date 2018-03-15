@@ -97,7 +97,7 @@ With AnyWhichWay, if you know the functions available on an array you know more 
 
 If you like the concept of AnyWhichWay give us a star here on GitHub or npmjs.
 
-Help spread the word by a comment or up vote on [echojs](http://www.echojs.com/news/25933) or a <a href="http://twitter.com/home?status=Looks interesting https://github.com/anywhichway/anywhichway/">Tewwt</a>.
+Help spread the word by a comment or up vote on [echojs](http://www.echojs.com/news/25933) or a <a href="http://twitter.com/home?status=Looks interesting https://github.com/anywhichway/anywhichway/">Tweet</a>.
 
 
 # Installation
@@ -471,6 +471,8 @@ Note: The function `outside` returns a function that take a single argument, `va
 			
 
 # Release History (reverse chronological order)
+
+2018-03-14 - ALPHA v0.0.15a enhanced documentation.
 
 2018-03-14 - ALPHA v0.0.14a tested with `blockstore`, improved `fork`.
 
