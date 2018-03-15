@@ -91,6 +91,13 @@ With AnyWhichWay, if you know the functions available on an array you know more 
 6) Data expiration:
 
 	a) `put({passwordResetKey: 12345},30*60*1000})` - inserts a key for password reset that expires and is deleted in 30 minutes.
+	
+	
+# Assist Us
+
+If you like the concept of AnyWhichWay give us a star here on GitHub or npmjs.
+
+Help spread the word by a comment or up vote on [echojs.com](http://www.echojs.com/news/25933) or a [Tweet](http://twitter.com/home?status=Looks interesting https://github.com/anywhichway/anywhichway/).
 
 
 # Installation
