@@ -18,7 +18,7 @@ It is in an early ALPHA and currently supports:
 
 6) "Smart" serialization. The database "learns" about new classes as they are inserted and restores data into appropriate class instances.
 	
-7) Over 30 piped query commands such as `first(n)`, `last(n)`, `map(f)`, `mapReduce(mapper,reducer)` , `put(object)`, `reduce(f,init)`.
+7) Over 30 piped array like query commands such as `first(n)`, `last(n)`, `map(f)`, `mapReduce(mapper,reducer)` , `pop()`, `reduce(f,init)`.
 
 8) Custom graph navigation and piped commands in as little as one line of code.
 
@@ -30,16 +30,19 @@ It is in an early ALPHA and currently supports:
 
 The key value stores that will not work are those that generate file names for the keys, e.g. node-localstorage. This is because the keys generated internally by AnyWhichWay are often not valid file names.
 
-This version has been tested with: `localStorage`, `Redis`, `idbkvstore`. AnyWhichWay has built in logic to find the appropriate `get`, `set`, and `delete` methods.
+This version has been tested with: [localStorage](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage) and [idbkvstore](https://github.com/xuset/idb-kv-store) in the browser plus [Redis](https://redis.io/clients) and [blockstore](https://github.com/anywhichway/blockstore) on the server. AnyWhichWay has built in logic to find the appropriate `get`, `set`, and `delete` methods.
 
 Note: `idbkvstore` is currently very slow for `put`. In fact, things will run faster against a remote Redis store.
 
-The internals of AnyWhichWay are based on asychronous generators to ensure non-blocking return of results as fast as possible. For example, the join command above yields 
-one tuple at a time rather than assembling all possible tuples before returning like one usually does with an SQL store or even with many No-SQL databases that don't support streaming result sets. Not only will this appear to run faster, it will consume less memory.
+# Why AnyWhichWay
 
+When processing data in JavaScript, one usually ends-up collecting things into arrays and then processing the arrays to sort, filter, reduce etc. This can consume large amounts of RAM and also means that
+result processing can't start until an array is fully populated, particularly with respect to simulating joins. AnyWhichWay provies a full set of array like functions that are actually backed by asynchronous
+generators. Even the join processor is an asynchronous generator that processes one tuple at a time. When processing large volumes of data, this ensures the non-blocking return of initial results as fast as possible while limiting RAM usage.
+
+With AnyWhichWay, if you know the functions available on an array you know more than 80% of what is required to query and process data in a manner far more rich than many alternatives with a far smaller footprint. It is currenlty about 12K uncompressed. We anticipate it will be about 20K uncompressed and 12K to 15K compressed when BETA and PRODUCTION are released. Granted, AnyWhichWay is in ALPHA now, so there are also things missing, e.g. conflict resolution, full transaction management.
 
 # Example Capabilities
-
 
 1) Graph navigation over fully indexed data supporting:
 
@@ -51,7 +54,7 @@ one tuple at a time rather than assembling all possible tuples before returning 
 	
 	d) wild cards, e.g. `get("*/email/*")`, will retrieve all objects that have an email property, not just Persons.
 	
-	e) inline functions, e.g. `get("Person/age/(value) => (value > 27 ? value : undefined")` also retrieves all Persons over 27, although more slowly
+	e) inline functions, e.g. `get("Person/age/(value) => value > 27 ? value)` also retrieves all Persons over 27, although more slowly
 	
 	f) object methods, e.g. `get("Car/#/.makeAndModel()) will return all makeAndModel strings for all Cars.
 
@@ -100,7 +103,7 @@ Node v9.7.1 (the most recent at this writing) must be run with the `--harmony` f
 
 Babel transpiled code will not work. Babel does not seem to generate correct asynchronous generators.
 
-# Doumentation Notes
+# Documentation Notes
 
 When "Object" is capitalized it refers to a direct instance of the class Object. When "object" is lower case it refers to an instance of any type of class except Array, which uses the term "array".
 
@@ -197,7 +200,7 @@ Graph references generally start with a classname followed by a property and a v
 ```
 is matched by:
 
-```
+```javascript
 Object/address/city/"Bainbridge Island"
 
 Object/address/zipcode/base/98110
@@ -239,6 +242,8 @@ Dynamic in-line tests MUST use parentheses around arguments, even if there is ju
 Dynamic in-line tests expose your code to injection risk and must be enabled by setting `inline` to true in the options object when a database connection is created. 
 Any in-line test can be added as compiled tests to avoid this issue. See Extending AnyWhichWay.
 
+It should not be overlooked that by design graph paths can be escaped and passed directly over a network as `get` requests!
+
 ## Query Patterns
 
 Query patterns are objects. If the query pattern is an instance of a specific kind of object, then only those kinds of objects will be matched.
@@ -279,7 +284,11 @@ Queries are initiated using `<db>.query()`.
 		
 `forEach(f)` - Calls `f(value,index)` for all values.
 
-`fork(...queryFragmentFunctions)` - creates multiple yiled streams with copies of the value passed to `fork`.
+`fork(...queryFragmentFunctions)` - creates multiple yield streams with copies of the value passed to `fork`. If an array is passed and it contains objects, each object is also copied. A `queryFragmentFunction` takes the form:
+
+```javascript
+function() { return this.<query command 1>.<query command 2>...<query command n>; } // "this" takes the place of "<database>.query()" and there should be no "all()" or "exec()" at the end.
+```
 		
 `get(pathOrPattern)` - See Query Patterns below.
 	
@@ -333,6 +342,16 @@ only 'put' is supported.
 
 `splice(start,deleteCount,...items)` - Yields `items` values after values up to `start` have been yielded and up to `deleteCount` items have not been yielded.
 
+`unique()` - Yields only unique values.
+ 
+`unshift(value)` - 
+
+`values()` - Yields all the values of properties on any objects passed down. Does not yield any other values.
+
+`when(test,f)` - When `test(value)` returns truthy, calls `f(value)`.
+
+`yield()` - Assumes an array is being passed from upstream and yields each value separately.
+  
 `gt(testValue)` - Yields values that are > `testValue`.
 
 `gte(testValue)` - Yields values that are >= `testValue`.
@@ -345,7 +364,7 @@ only 'put' is supported.
 
 `eeq(testValue) - Yields values that are === `testValue`.
 
-`echoes(testVlaue)` - Yields values that sound like `testValue`.
+`echoes(testValue)` - Yields values that sound like `testValue`.
 
 `matches(testValue)` - Yields values that match `testValue` where `testValue` is a RegExp. If `testValue` is a string it is converted into a RegExp.
 
@@ -446,9 +465,11 @@ Note: The function `outside` returns a function that take a single argument, `va
 
 # Release History (reverse chronological order)
 
+2018-03-14 - ALPHA v0.0.14a tested with `blockstore`, improved `fork`.
+
 2018-03-14 - ALPHA v0.0.13a fixed some string escape issues for `idbkvstore`.
 
-2018-03-13 - ALPHA v0.0.12a enhanced documentation
+2018-03-13 - ALPHA v0.0.12a enhanced documentation.
 
 2018-03-13 - ALPHA v0.0.11a enhanced documentation, added `assign`, `default`, `fetch`, `fork`.
 

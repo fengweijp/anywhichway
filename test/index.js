@@ -2,12 +2,14 @@ var chai,
 	expect,
 	Database,
 	localStorage,
-	redis;
+	redis,
+	BlockStore;
 if(typeof(window)==="undefined") {
 	chai = require("chai");
 	expect = chai.expect;
 	Database = require("../index.js");
 	redis = require("redis");
+	BlockStore = require("blockstore");
 }
 
 let store = (redis ? redis.createClient({
@@ -16,6 +18,7 @@ let store = (redis ? redis.createClient({
 	password:process.env.PWD,
 	no_ready_check:true}) : localStorage);
 //redis || (store = new IdbKvStore("scratch"));
+//store = new BlockStore("./test/data",true,"utf8");
 
 if(store.on) {
 	store.on("error",error => console.log(error))
@@ -383,8 +386,15 @@ describe("Test",function () {
 			.catch(e => done(e))
 	});
 	it(` db0.query().provide({name:"Joe",age:26}).fork(function(){ this.forEach(value => console.log(value))},function(){ this.forEach(value => console.log(value))}).all()`,function (done) {
-		const test =  eval("()=>"+this.test.title.substring(1));
-		test()
+		//const test =  eval("()=>"+this.test.title.substring(1));
+		const test = db0.query().provide({name:"Joe",age:26}).fork(function(){ 
+			return this.forEach(value => { 
+			value.age--; console.log(value); 
+			})},function(){ 
+				return this.forEach(value => { 
+			value.age++; console.log(value)
+			})}).all();
+		test
 			.then(result => {
 				expect(result.length).to.equal(1);
 				expect(result[0].name).to.equal("Joe");

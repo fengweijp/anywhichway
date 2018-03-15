@@ -327,12 +327,18 @@ class Query {
 		return this;
 	}
 	fork(...queries) {
+		this.collect();
 		for(let query of queries) {
 			const fork = this.database.query();
 			query.call(fork);
-			fork.merge(this,null,true);
-			fork.all();
+			this.command.push(value => { 
+				fork.provide(...value.map(value => value && typeof(value)==="object" ? Object.assign({},value) : value)); // need to handle arrays
+				const provide = fork.command.pop();
+				fork.command.unshift(provide);
+				fork.all();
+				return value; });
 		}
+		this.yield();
 		return this;
 	}
 	get(pathOrPattern,edgeOnly,ctor = pathOrPattern ? pathOrPattern.instanceof : undefined) {
@@ -403,7 +409,7 @@ class Query {
 	merge(query,where,copy) {
 		this.command.push(async function*(data) {
 			const values = await query.all(),
-				record = (Array.isArray(data) ? data : [data]);
+				record = (Array.isArray(data) ? data : data!==undefined ? [data] : []);
 			for(let value of values) {
 				if(!where || where(record)) yield (copy ? record.slice() : record);
 			}
@@ -638,10 +644,6 @@ class Database {
 				this.ondelete = {};
 				if(value!==undefined) this.value = value;
 				const loaded = new Promise(async resolve => {
-					//if(idparts && idparts[0]==="Date") {
-					//	resolve();
-					//	return;
-					//}
 					let create = false,
 						action;
 					const item = await storage.getItem(this.key);
@@ -1553,16 +1555,3 @@ if(typeof(module)!=="undefined") module.exports = Database;
 if(typeof(window)!=="undefined") window.Database = Database;
 
 }).call(this);
-//var db0;
-//async function test() {
-//	db0 = new Database(localStorage,{inline:true,root:"root"});
-	//db0.on("name","patch",(...args) => console.log("changes:",args));
-	//db0.on({name:value=>value==="Bill"},"patch",(...args) => console.log("patch:",args));
-	//db0.on({name:value=>value==="Joe"},"put",(...args) => console.log("put:",args));
-	//db0.on({name:value=>value==="John"},"delete",(...args) => console.log("delete:",args));
-	//await db0.get("name").on("put",(event) => console.log(event));
-	//await db0.get("age").on("put",(event) => console.log(event));
-	//await db0.get("age").on("patch",(event) => console.log(event));
-	//await db0.get("id").on("put",(event) => console.log(event));
-//}
-//test();
