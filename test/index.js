@@ -181,7 +181,7 @@ describe("Test",function () {
 				benchmark({name:this.test.title,fn:test});})
 			.catch(e => done(e))
 	});
-	it(`# db0.query().put({put:1}).put({put:2}).get({put:(value) => value}).all()`,function (done) {
+	it(`# db0.query().put({put:1,optin:true}).put({put:2}).get({put:(value) => value}).all()`,function (done) {
 		const test  = eval("()=>"+this.test.title.substring(1));
 		test()
 			.then(result => {
@@ -468,13 +468,25 @@ describe("Test",function () {
 	});
 	it(` db0.query().on({optin:value=>value===true},"put",(...args) => passed = args).put({optin:true}).all()`,function (done) {
 		let passed;
-		const test  = () => db0.query().on({optin:value=>value===true},"put",(...args) => passed = args).put({optin:true}).all();
+		const test  = () => db0.query().on({optin:(value)=>value===true},"put",(...args) => passed = args).put({optin:true}).all();
 		test()
 			.then(result =>
 				setTimeout(() => {
 					expect(Array.isArray(passed)).to.equal(true);
 					this.test.title += " = " + JSON.stringify(result);
 					done();
+				}))
+			.catch(e => done(e))
+	});
+	it(` db0.query().on({optin:value=>value===true},"delete",(...args) => passed = args).delete({optin:true}).all()`,function (done) {
+		let passed;
+		const test  = () => db0.query().on({optin:(value)=>value===true},"delete",(...args) => passed = args).delete({optin:true}).all();
+		test()
+			.then(result =>
+				setTimeout(() => {
+					expect(Array.isArray(passed)).to.equal(true);
+					this.test.title += " = " + JSON.stringify(result);
+					done()
 				}))
 			.catch(e => done(e))
 	});

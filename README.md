@@ -99,8 +99,46 @@ If you like the concept of AnyWhichWay give us a star here on GitHub or npmjs.
 
 Help spread the word by a comment or up vote on [echojs](http://www.echojs.com/news/25933) or a <a href="http://twitter.com/home?status=Looks interesting https://github.com/anywhichway/anywhichway/">Tweet</a>.
 
+# Contents
 
-# Installation
+##[Installation][Installation]
+
+##[Documentation Notes][Documentation Notes]
+
+##[Starting A Database][Starting A Database]
+
+##[Storing Data][Storing Data]
+
+##[Retrieving Data][Retrieving Data]
+
+###[Graph Navigation][Graph Navigation]
+
+###[Query Patterns][Query Patterns]
+
+###[Query Commands][Query Commands]
+
+###[Piped Commands][Piped Commands]
+
+###[Predicate Filters][Predicate Filters]
+
+##[Joins][Joins]
+
+##[Metadata][Metadata]
+
+##[Security][Security]
+
+##[Transactions][Transactions]
+
+##[Triggers][Triggers]
+
+##[Extending AnyWhichWay][Extending AnyWhichWay]
+
+###[Predicates][Predicates]
+
+##[Release History][Release History]
+
+
+# Installation [Installation]
 
 `npm install anywhichway`
 
@@ -110,7 +148,7 @@ Node v9.7.1 (the most recent at this writing) must be run with the `--harmony` f
 
 Babel transpiled code will not work. Babel does not seem to generate correct asynchronous generators.
 
-# Documentation Notes
+# Documentation Notes [Documentation Notes]
 
 When "Object" is capitalized it refers to a direct instance of the class Object. When "object" is lower case it refers to an instance of any type of class except Array, which uses the term "array".
 
@@ -118,7 +156,7 @@ The property "#" is the default used for unique uuidv4 ids on objects in AnyWhic
 
 The property "^" is the default used for object metadata. See the section Metadata for more info.
 
-# Starting A Database
+# Starting A Database [Starting A Database]
 
 Databases are instantiated with 2 arguments, a storage instance and and options object.
 
@@ -147,7 +185,7 @@ The options object supports the following:
 
 
 
-# Storing Data
+# Storing Data [Storing Data]
 
 To store an object and have it indexed, just use 'put(object)`, e.g.
 
@@ -164,7 +202,8 @@ mydb.query().put({name:"Joe",age:27,instanceof:"Person"}).exec(); // inserts a P
 You can return all the objects inserted instead of just executing:
 
 ```javascript
-await results = mydb.get().put({name:"Joe",age:27}).put({name:"Mary",age:26}).all(); // inserts two Objects and yields [{name:"Joe",age:27},{name:"Joe",age:27}]
+// inserts two Objects and yields [{name:"Joe",age:27},{name:"Joe",age:27}]
+await results = mydb.get().put({name:"Joe",age:27}).put({name:"Mary",age:26}).all(); 
 
 ```
 
@@ -184,9 +223,9 @@ You can use AnyWhichWay like a regular key-value store. Just be careful not to u
 Not yet impmented in the ALPHA is `patch`. For now a `delete` followed by a `put` is required.
 
 
-# Retrieving Data
+# Retrieving Data [Retrieving Data]
 
-## Graph Navigation
+## Graph Navigation [Graph Navigation]
 
 Data can be retrieved using a graph path, e.g.:
 
@@ -242,30 +281,31 @@ Tertiary nodes after the "#" selector can be property names or method calls, e.g
 `Car/#/.makeAndModel()` - However, method names can only be invoked as a result of a table scan.
 
 
-## Notes
-
-Dynamic in-line tests MUST use parentheses around arguments, even if there is just one.
+**Notes**: Dynamic in-line tests MUST use parentheses around arguments, even if there is just one.
 
 Dynamic in-line tests expose your code to injection risk and must be enabled by setting `inline` to true in the options object when a database connection is created. 
 Any in-line test can be added as compiled tests to avoid this issue. See Extending AnyWhichWay.
 
 It should not be overlooked that by design graph paths can be escaped and passed directly over a network as `get` requests!
 
-## Query Patterns
+## Query Patterns [Query Patterns]
 
 Query patterns are objects. If the query pattern is an instance of a specific kind of object, then only those kinds of objects will be matched.
 
 Property values in query patterns may be literals or functions that return 'falsy' if they should fail.
 
 ```javascript
-mydb.query().get({age:value => value > 27,address:{state:WA},instanceof:Person}).all(); // yield all Person's over 27 in the state of Washington.
+// yield all Person's over 27 in the state of Washington.
+mydb.query().get({age:value => value > 27,address:{state:WA},instanceof:Person}).all(); 
 ```
 
-# Queries
+## Query Commands [Query Commands]
 
-Queries are effectively a series of pipes that change the nature of the results or produce other side-effects. Internally, all query commands are wrapped in a generator functions that `yield` each result to the next command.
+Queries are effectively a series of pipes or predicate filters that change the nature of the results or produce other side-effects. Internally, all query commands are wrapped in a generator functions that `yield` each result to the next command.
 
 Queries are initiated using `<db>.query()`.
+
+## Piped Commands [Piped Commands]
 
 `all()` - Yields the values of a query as an array.
 
@@ -275,7 +315,7 @@ Queries are initiated using `<db>.query()`.
 	
 `collect()` - Collects values into an array.
 
-`default(object)` - Works similar to `aasign` except only sets properties that do not already exist.
+`default(object)` - Works similar to `assign` except only sets properties that do not already exist.
 
 `delete(pathOrPatternOrId)` - Deletes the specified item. Or, if no argument is provided, deletes the item yielded by the previous step in the query.
 
@@ -294,7 +334,8 @@ Queries are initiated using `<db>.query()`.
 `fork(...queryFragmentFunctions)` - creates multiple yield streams with copies of the value passed to `fork`. If an array is passed and it contains objects, each object is also copied. A `queryFragmentFunction` takes the form:
 
 ```javascript
-function() { return this.<query command 1>.<query command 2>...<query command n>; } // "this" takes the place of "<database>.query()" and there should be no "all()" or "exec()" at the end.
+ // "this" takes the place of "<database>.query()" and there should be no "all()" or "exec()" at the end.
+function() { return this.<query command 1>.<query command 2>...<query command n>; }
 ```
 		
 `get(pathOrPattern)` - See Query Patterns below.
@@ -311,9 +352,7 @@ function() { return this.<query command 1>.<query command 2>...<query command n>
 
 `merge(query,where)` - Merges the values yielded by another query so long as the values satisfy `where(value)`.
 
-`on(pattern,eventType,callback)` - Ads `callback` as a trigger on `pattern` for the event types `put`, `patch`, `delete`. The callback is
-invoked with an event object of the form `{type:"put"|"patch"|"delete",target:object,key:string,value:<any value>}`. Notes: In the current ALPHA
-only 'put' is supported.
+`on(pattern,eventType,callback[,persist])` - Ads `callback` as a trigger on `pattern` for the event types `put`, `patch`, `delete`. Optionally, set `persist` to true. See Triggers for more information.
 
 `pop(f)` - Pulls the first value and does not yield it. If `f` is not null calls `f(value)` with the popped value.
 	
@@ -358,6 +397,10 @@ only 'put' is supported.
 `when(test,f)` - When `test(value)` returns truthy, calls `f(value)`.
 
 `yield()` - Assumes an array is being passed from upstream and yields each value separately.
+
+## Predicate Filters [Predicate Filters]
+
+Yield down the chain only those values that pass the test. These are also available as inline functions for paths.
   
 `gt(testValue)` - Yields values that are > `testValue`.
 
@@ -390,7 +433,7 @@ only 'put' is supported.
 `not(f)` - Yields values where `!f(value)` is truthy.
 
 
-# Joins
+# Joins [Joins]
 
 `join(...pathsOrPatterns,test)` - Yields arrays of value combinations that satisfy `test(<array combination>)`. 
 
@@ -401,7 +444,7 @@ By convention you should destructure the argument to test. The example below wil
 ```
 
 
-# Metadata
+# Metadata [Metadata]
 
 The signature of metadata is: `{created:Date,updated:Date,expires:Date,duration:milliseconds}`.
 
@@ -410,7 +453,7 @@ With the exception of Dates, unique object uuidv4 ids are stored on objects them
 Dates have the id signature `Date@<milliseconds>`.
 
 
-# Security
+# Security [Security]
 
 All security is expressed using graph paths and a special query command `secure(path,function)`. This allows the application of security at any level desired, e.g.
 
@@ -439,7 +482,7 @@ used for reference only. Attempts to change it will result in an error. To ignor
 
 Returning `true` (not just a truthy) will allow the action.
 
-# Transactions
+# Transactions [Transactions]
 
 Writes of objects that do not contain nested objects or that contain only nested objects of classes that are not registered with schema are atomic and done before indexing. This is somewhat transactional; however, if there is a failure, indexes may be incomplete.
 
@@ -449,6 +492,18 @@ All objects are written prior to indexing. Currently schema must be registered e
 definitions; however, this can be changed simply by calling `register` with three arguments.
 
 The above being said, a base design for full transactional capability has been envisioned and the capability is possible.
+
+# Triggers [Triggers]
+
+`on(pattern,eventType,callback,persist)` - Ads `callback` as a trigger on `pattern` for the event types `put`, `patch`, `delete`.
+
+The callback is invoked with an event object of the below form. **Note**: In the current ALPHA only 'put' and 'delete` are supported.
+
+```javascript
+{type:"put"|"patch"|"delete",target:object,key:string,value:<any value>}`
+```
+
+If `persist` is truthy, the `callback` will be serialized between database sessions. So, unless it is only intended for use within a session, it should not contain any closure scoped variables.
 
 # Extending AnyWhichWay
 
@@ -471,6 +526,8 @@ Note: The function `outside` returns a function that take a single argument, `va
 			
 
 # Release History (reverse chronological order)
+
+2018-03-16 - ALPHA v0.0.16a enhanced documentation, added `ondelete` handling.
 
 2018-03-14 - ALPHA v0.0.15a enhanced documentation.
 

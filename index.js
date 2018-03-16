@@ -27,7 +27,7 @@ SOFTWARE.
 const soundex = (a) => {a=(a+"").toLowerCase().split("");var c=a.shift(),b="",d={a:"",e:"",i:"",o:"",u:"",b:1,f:1,p:1,v:1,c:2,g:2,j:2,k:2,q:2,s:2,x:2,z:2,d:3,t:3,l:4,m:5,n:5,r:6},b=c+a.map(function(a){return d[a]}).filter(function(a,b,e){return 0===b?a!==d[c]:a!==e[b-1]}).join("");return(b+"000").slice(0,4).toUpperCase()};
 
 // from https://gist.github.com/lovasoa/3361645 + length==1 mod by AnyWhichWay
-function intersection(){if(arguments.length===1) return arguments[0]; var a,b,c,d,e,f,g=[],h={},i;i=arguments.length-1;d=arguments[0].length;c=0;for(a=0;a<=i;a++){e=arguments[a].length;if(e<d){c=a;d=e}}for(a=0;a<=i;a++){e=a===c?0:a||c;f=arguments[e].length;for(var j=0;j<f;j++){var k=arguments[e][j];if(h[k]===a-1){if(a===i){g.push(k);h[k]=0}else{h[k]=a}}else if(a===0){h[k]=0}}}return g}
+function intersection(){if(arguments.length===0) return []; if(arguments.length===1) return arguments[0]; var a,b,c,d,e,f,g=[],h={},i;i=arguments.length-1;d=arguments[0].length;c=0;for(a=0;a<=i;a++){e=arguments[a].length;if(e<d){c=a;d=e}}for(a=0;a<=i;a++){e=a===c?0:a||c;f=arguments[e].length;for(var j=0;j<f;j++){var k=arguments[e][j];if(h[k]===a-1){if(a===i){g.push(k);h[k]=0}else{h[k]=a}}else if(a===0){h[k]=0}}}return g}
 
 
 //https://stackoverflow.com/questions/105034/create-guid-uuid-in-javascript
@@ -154,7 +154,7 @@ const compile = string => {
 			return value;
 		}
 	},
-	toEdgeValue = value => typeof(value)==="string" && !parseId(value) && value!=="*" ? JSON.stringify(value) : value && typeof(value)==="object" ? value["#"] : value;
+	toEdgeValue = value => typeof(value)==="string" && !parseId(value) && value!=="*" ? JSON.stringify(value) : value && typeof(value)==="object" ? value["#"] : typeof(value)==="function" ? value+"" : value;
 
 async function* cartesian(head, ...tail) {
   const remaining = tail.length > 0 ? cartesian(...tail) : [[]];
@@ -212,6 +212,15 @@ class Metadata {
 		if(!subject["#"]) subject["#"] = defaultIdGenerator(subject);
 		this.created = new Date();
 		this.subject = subject["#"];
+		this["#"] = defaultIdGenerator(this);
+	}
+}
+class Trigger {
+	constructor(pattern,persist) {
+		Object.assign(this,pattern);
+		if(!persist) {
+			Object.defineProperty(this,"ephemeral",{enumerable:false,configurable:true,writable:true,value:true})
+		}
 		this["#"] = defaultIdGenerator(this);
 	}
 }
@@ -416,17 +425,13 @@ class Query {
 		});
 		return this;
 	}
-	on(pattern,eventName,callback) {
+	on(pattern,eventName,callback,persist) {
 		const root = this.database.data,
-			object = Object.assign(Object.create(Object.getPrototypeOf(pattern)),pattern);
-		Object.defineProperty(object,"isPattern",{enumerable:false,configurable:true,writable:true,value:true});
-		for(let key in object) object[key] = "*";
-		this.command.push(async function*() {
-			for await (let next of root.get(normalizePathOrPattern(object),true,false,true)) yield next;
-		});
-		this.command.push(async edge => {
-			edge.on(pattern,eventName,callback);
-			return edge;
+			trigger = new Trigger(pattern,persist);
+		this.command.push(async function(data) {
+			trigger[`on${eventName}`] = callback; 
+			await root.put(trigger);
+			return trigger;
 		});
 		return this;
 	}
@@ -639,9 +644,6 @@ class Database {
 				}
 				this.key = key; // use to load from a key value store as prefix
 				this.edges = {};
-				this.onput = {};
-				this.onpatch = {};
-				this.ondelete = {};
 				if(value!==undefined) this.value = value;
 				const loaded = new Promise(async resolve => {
 					let create = false,
@@ -686,23 +688,6 @@ class Database {
 						} else {
 							await storage.setItem(key,JSON.stringify(this));
 						}
-						
-						// if we index the metadata, we wil be able to easily find expiring stuff for deletion!!
-						/*parts.shift(); // remove root;
-						parts.pop(); // remove self
-						parts.pop(); // remove parent
-						const gparent = database.getEdge(path);
-						if(gparent) {
-							for(let fstr in gparent.onput) {
-								if(typeof(gparent.onput[fstr])==="boolean") gparent.onput[fstr] = new Function("return " + fstr);
-								const event = {path:path.join("/"),value,event:"put"};
-								if(parseId(value)) {
-									event.object = database.getObject(value);
-									event.value = event.object[path[path.length-1]];
-								}
-								gparent.onput[fstr](event)
-							}
-						}*/
 					}
 					resolve(true);
 				});
@@ -729,7 +714,7 @@ class Database {
 				for(let key in object) {
 					let value = object[key],
 						type = typeof(value);
-					if(value && type==="object") {
+					if(value && type==="object" && value.constructor!==Object) {
 						const children = this.atomize(value,idGenerator);
 						atoms = atoms.concat(children);
 						atoms.push([value.constructor,"..",value["#"],id]);
@@ -742,13 +727,7 @@ class Database {
 			}
 			toJSON() {
 				const value = database.serialize(this.value), //database.serialize(this.value), //(typeof(this.value)==="function" ? this.value+"" : this.value), //
-					json = {value,"^":database.serialize(this["^"]),onput:{},ondelete:{}};
-				for(let key in this.onput) {
-					json.onput[key] = database.serialize(this.onput[key]);
-				}
-				for(let key in this.ondelete) {
-					json.ondelete[key] =  database.serialize(this.ondelete[key]);
-				}
+					json = {value,"^":database.serialize(this["^"])};
 				for(let key1 in this.edges) {
 					if(!json.edges) json.edges = {};
 					const edge1 = this.edges[key1];
@@ -768,88 +747,91 @@ class Database {
 				}
 				return json;
 			}
-			async delete(pathOrPatternOrId) {
-				const type = typeof(pathOrPatternOrId);
-				let target = pathOrPatternOrId;
-				if(type==="string") {
-					target = Object.assign({},await database.getObject(pathOrPatternOrId));
-					Object.defineProperty(target,"isPattern",{enumerable:false,configurable:true,writable:true,value:true});
-				}
-				if(typeof(target)==="object" && !Array.isArray(target)) {
-				let deleted,
-					next;
-				const source = (type==="string" ? [target] : this.find(target));
-				for await (let object of source) {
-					const id = object["#"],
-						classname = parseId(id)[0],
-						edge = database.data.edges[classname].edges[id];
-					await database.storage.removeItem(edge.key);
-					for(let key in object) {
-						const value = object[key],
-							evalue = toEdgeValue(value),
-							vedge = database.data.edges[classname].edges[key].edges[evalue];
-						if(key==="^") await this.delete(value["#"]);
-						if(vedge) {
-							delete vedge.edges[id];
-							if(Object.keys(vedge.edges).length===0) { // implement running key counts to speed this up
-								await database.storage.removeItem(vedge.key);
-								delete database.data.edges[classname].edges[key].edges[evalue];
-								const kedge = database.data.edges[classname].edges[key];
-								if(Object.keys(kedge.edges).length===0) {
-									await database.storage.removeItem(edge.key);
-									delete database.data.edges[classname].edges[key];
+				async delete(pathOrPatternOrId) {
+					const type = typeof(pathOrPatternOrId);
+					let target = pathOrPatternOrId;
+					if(type==="string") {
+						target = Object.assign({},await database.getObject(pathOrPatternOrId));
+						Object.defineProperty(target,"isPattern",{enumerable:false,configurable:true,writable:true,value:true});
+					}
+					if(typeof(target)==="object" && !Array.isArray(target)) {
+					let deleted,
+						next;
+					const source = (type==="string" ? [target] : this.find(target));
+					for await (let object of source) {
+						const id = object["#"],
+							classname = parseId(id)[0],
+							edge = database.data.edges[classname].edges[id];
+						await database.storage.removeItem(edge.key);
+						for(let key in object) {
+							const value = object[key],
+								evalue = toEdgeValue(value),
+								vedge = database.data.edges[classname].edges[key].edges[evalue];
+							if(key==="^") await this.delete(value["#"]);
+							if(vedge) {
+								delete vedge.edges[id];
+								if(Object.keys(vedge.edges).length===0) { // implement running key counts to speed this up
+									await database.storage.removeItem(vedge.key);
+									delete database.data.edges[classname].edges[key].edges[evalue];
+									const kedge = database.data.edges[classname].edges[key];
+									if(Object.keys(kedge.edges).length===0) {
+										await database.storage.removeItem(edge.key);
+										delete database.data.edges[classname].edges[key];
+									} else {
+										await kedge.save();
+									}
 								} else {
-									await kedge.save();
+									await vedge.save();
 								}
-							} else {
-								await vedge.save();
 							}
 						}
+						delete database.data.edges[classname].edges[id];
+						await database.data.edges[classname].save();
+						this.handle("delete",object);
+						deleted = true;
 					}
-					delete database.data.edges[classname].edges[id];
-					await database.data.edges[classname].save();
-					deleted = true;
+					if(deleted) {
+						await database.data.save();
+					}
+					return;
+				} 
+				let deleted,
+					next;
+				for await (let edge of database.data.get(pathOrPattern,false)) {
+					await edge.loaded;
+					await edge.delete();
 				}
-				if(deleted) {
-					await database.data.save();
+				const id = pathOrPattern.pop();
+				for await (let edge of database.data.get(pathOrPattern,false)) {
+					if(edge.edges[id]) {
+						delete edge.edges[id];
+						await edge.save();
+					}
 				}
+				const value = pathOrPattern.pop();
+				for await (let edge of database.data.get(pathOrPattern,false)) {
+					if(edge.edges[value]) {
+						edge.edges[value].edges = {};
+						await edge.edges[value].save();
+						delete edge.edges[value];
+						await edge.save();
+					}
+				}
+				if(deleted) await this.save();
 				return;
-			} 
-			let deleted,
-				next;
-			for await (let edge of database.data.get(pathOrPattern,false)) {
-				await edge.loaded;
-				await edge.delete();
 			}
-			const id = pathOrPattern.pop();
-			for await (let edge of database.data.get(pathOrPattern,false)) {
-				if(edge.edges[id]) {
-					delete edge.edges[id];
-					await edge.save();
-				}
-			}
-			const value = pathOrPattern.pop();
-			for await (let edge of database.data.get(pathOrPattern,false)) {
-				if(edge.edges[value]) {
-					edge.edges[value].edges = {};
-					await edge.edges[value].save();
-					delete edge.edges[value];
-					
-					await edge.save();
-				}
-			}
-			if(deleted) await this.save();
-			return;
-		}
 			async* find(pattern,create,edgeOnly,all) {
 				await this.loaded;
 				const sets = [],
 					atoms = await this.atomize(pattern,() => "*",create);
 				for(let [ctor,id,key,value] of atoms) {
 					if(!all && key==="#" && value==="*") continue; //avoid matching all objects!
+					if(edgeOnly && id==="..") continue; // avoid matching parent object
 					const set = [],
 						generator = this.get([ctor.name,key,(value==="*" ? value : toEdgeValue(value)),id],create,false,true);
-					for await (let edge of generator) set.push(edge.key.split("/").pop())
+					for await (let edge of generator) {
+						set.push(edge.key.split("/").pop()) // get the object id
+					}
 					sets.push(set);
 				}
 				const results = intersection(...sets);
@@ -1015,7 +997,7 @@ class Database {
 						} catch(e) {
 							true;
 						}
-					} else if(key==="*") {
+					} else if(key[0]==="*") {
 						let some;
 						for(let value in this.edges) {
 							some = true;
@@ -1024,7 +1006,17 @@ class Database {
 								await this.edges[value].loaded;
 								if(create && !put) await this.save();
 							}
-							yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly);
+							if(key[1]==="(") {
+								const valuestr = key.substring(2,key.indexOf(")")),
+									testvalue = (valuestr.length>0 ? toValue(valuestr) : undefined),
+									f = compile(value);
+								if(typeof(f)!=="function") continue;
+								if(testvalue===undefined ? f() : f(testvalue)) {
+									yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly);
+								}
+							} else {
+								yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly);
+							}
 						}
 						if(!some && edgeOnly && parts.length===1) yield this;
 					} else {
@@ -1058,6 +1050,30 @@ class Database {
 				path.pop(); // remove self reference
 				return database.getEdge(path);
 			}
+			async handle(event,data) {
+				// move triggers to their own keystore like security
+				const etype = `on${event}`;
+				if(!(data instanceof Trigger)) {
+					const sets = [];
+					for(let key in data) {
+						const value = data[key],
+							type = typeof(value);
+						if((!value && type==="object") || type==="function") continue;
+						const set = [];
+						for await (let trigger of database.data.get(["Trigger",key,`*(${toEdgeValue(value)})`,"*"])) {
+							set.push(trigger["#"]);
+						}
+						if(set.length>0) sets.push(set)
+					}
+					const triggers = intersection(...sets);
+					for(let id of triggers) {
+						const trigger = await database.getObject(id);
+						if(trigger[etype]) {
+							trigger[etype]({type:event,target:data});
+						}
+					}
+				}
+			}
 			match(path,object,create) {
 				let node = object,
 					key;
@@ -1073,7 +1089,7 @@ class Database {
 				}
 				return node;
 			}
-			async on(pattern,eventName,callback) {
+			/*async on(pattern,eventName,callback) {
 				let handler = this[`on${eventName}`][callback];
 				if(!handler) {
 					handler = this[`on${eventName}`][callback] = {
@@ -1084,7 +1100,7 @@ class Database {
 				handler.patterns.push(pattern);
 				await this.save();
 				return this;
-			}
+			}*/
 			async patch(data,object) {
 				// should do recursive check to make sure there ar echanged
 				if(!data["#"] && (!object || !object["#"])) throw TypeError("Can't patch object that lacks an id");
@@ -1131,14 +1147,6 @@ class Database {
 												database.data.edges[key].edges[value] = new Graph(`${database.data.edges[key].key}/${value}`,newvalue,newvalue);
 												await database.data.edges[key].edges[value].loaded;
 											}
-											if(!database.data.edges[key].edges[value].edges[id] || !database.data.edges[key].edges[value].edges[id].loaded) {
-												const edge = database.data.edges[key];
-												for(let fstr in edge.onput) {
-													if(typeof(edge.onput[fstr])==="boolean") edge.onput[fstr] = new Function("return " + fstr);
-													puts.push(() => edge.onput[fstr]({path:edge.key.substring(edge.key.indexOf("/")+1),value:newvalue,object,event:"put"}));
-												}
-												database.data.edges[key].edges[value].edges[id] = database.data.edges[id]; 
-											}
 										}
 										if(oldvalue!==undefined && oldvalue!==newvalue) {
 											const value = toEdgeValue(oldvalue);
@@ -1163,21 +1171,12 @@ class Database {
 					patches.push({edge:this,data});
 					await this.save();
 				}
-				for(let put of puts) {
-					put();
-				}
-				for(let patch of patches) {
-					await patch.edge.save(); 
-					for(let fstr in patch.edge.onpatch) {
-						if(typeof(patch.edge.onpatch[fstr])==="boolean") patch.edge.onpatch[fstr] = new Function("return " + fstr);
-						patch.edge.onpatch[fstr]({path:patch.edge.key.substring(patch.edge.key.indexOf("/")+1),oldvalue:patch.oldvalue,newvalue:patch.newvalue,event:"patch",object:patch.object})
-					}
-				}
 			}
-			async put(data,durationOrDate) {		
+			async put(data,durationOrDate) {	
 				await this.loaded;
 				const type = typeof(data);
 				if(data && type==="object") {
+					const save = !data.ephemeral;
 					let metadata = data["^"];
 					if(!metadata) {
 						metadata = data["^"] = new Metadata(data);
@@ -1204,11 +1203,11 @@ class Database {
 						seen[unique] = true;
 						uatoms.push([ctor,id,key,value]);
 						let edge = database.data.edges[classname];
-						if(!edge || !edge.loaded) edge = database.data.edges[classname] = new Graph(`${database.data.key}/${classname}`,ctor===Date ? (...args) => new Date(...args) : ctor,true);
+						if(!edge || !edge.loaded) edge = database.data.edges[classname] = new Graph(`${database.data.key}/${classname}`,ctor===Date ? (...args) => new Date(...args) : ctor===Object ? () => new Object() : ctor,save);
 						promises.push(edge.loaded);
 						if(value && typeof(value)==="object") {
 							if(!database.data.edges[value.constructor.name].edges[value["#"]]) {
-								database.data.edges[value.constructor.name].edges[value["#"]] = new Graph(`${database.data.key}/${value.constructor.name}/${value["#"]}`,value,true);
+								database.data.edges[value.constructor.name].edges[value["#"]] = new Graph(`${database.data.key}/${value.constructor.name}/${value["#"]}`,value,save);
 								promises.push(database.data.edges[value.constructor.name].edges[value["#"]].loaded);
 								promises.push(database.data.edges[value.constructor.name].save());
 							} else {
@@ -1216,7 +1215,8 @@ class Database {
 							}
 						}
 					}
-					database.data.edges[data.constructor.name].edges[data["#"]] = new Graph(`${database.data.key}/${data.constructor.name}/${data["#"]}`,data,durationOrDate||true);
+					// should not this be first to save the data as soon as possible after class creation if necesdsary
+					database.data.edges[data.constructor.name].edges[data["#"]] = new Graph(`${database.data.key}/${data.constructor.name}/${data["#"]}`,data,durationOrDate||save);
 					promises.push(database.data.edges[data.constructor.name].edges[data["#"]].loaded);
 					await database.data.edges[data.constructor.name].save();
 					for(let [ctor,id,key,value] of uatoms) {
@@ -1230,7 +1230,7 @@ class Database {
 									const parentclass = parseId(value)[0];
 									edge = database.data.edges[classname].edges[key];
 									if(!edge || !edge.loaded) {
-										edge = database.data.edges[classname].edges[key] = new Graph(`${database.data.key}/${classname}/${key}`,key,true);
+										edge = database.data.edges[classname].edges[key] = new Graph(`${database.data.key}/${classname}/${key}`,key,save);
 										promises.push(await database.data.edges[classname].save());
 									}
 									promises.push(edge.loaded);
@@ -1239,14 +1239,14 @@ class Database {
 								} else {
 									edge = edge.edges[key];
 									if(!edge || !edge.loaded) {
-										edge = database.data.edges[classname].edges[key] = new Graph(`${database.data.key}/${classname}/${key}`,key,true);
+										edge = database.data.edges[classname].edges[key] = new Graph(`${database.data.key}/${classname}/${key}`,key,save);
 										promises.push(database.data.edges[classname].save());
 									}
 									promises.push(edge.loaded);
 									const evalue = key==="#" ? value : toEdgeValue(value);
 									edge = edge.edges[evalue];
 									if(!edge || !edge.loaded) {
-										edge = database.data.edges[classname].edges[key].edges[evalue] = new Graph(`${database.data.key}/${classname}/${key}/${evalue}`,value,true);
+										edge = database.data.edges[classname].edges[key].edges[evalue] = new Graph(`${database.data.key}/${classname}/${key}/${evalue}`,value,save);
 										promises.push(database.data.edges[classname].edges[key].save());
 									}
 									promises.push(edge.loaded);
@@ -1254,26 +1254,13 @@ class Database {
 									promises.push(edge.save());
 								}
 					}
-					for(let [ctor,id,key,value] of uatoms) {
-						if(id===".." || (value && typeof(value)==="object")) continue;
-						const classname = ctor.name,
-							edge = database.data.edges[classname].edges[key],
-							target = database.data.edges[classname].edges[id].value;
-						for(let fkey in edge.onput) {
-							const handler = edge.onput[fkey];
-							for(let pattern of handler.patterns) {
-								if(database.match(target,pattern)) {
-									const event = {type:"put",target,key,value};
-									handler.fn(event);
-								}
-							}
-						}
-					}
+					this.handle("put",data);
 					return Promise.all(promises);
 				} else {
 					this.value = data;
 					return this.save();
 				}
+				
 			}
 			async save() {
 				if(Object.keys(this.edges).length===0 && this.value===undefined) return await storage.removeItem(this.key);
@@ -1289,13 +1276,10 @@ class Database {
 		this.schema = {};
 		this.register(Object);
 		this.register(Date);
+		this.register(Trigger);
 		//this.register(Metadata);
 		this.tests = Object.assign({},Database.tests);
 		if(options.tests) Object.assign(this.tests,options.tests);
-		this.commands = [];
-		this.onput = {};
-		this.onpatch = {};
-		this.ondelete = {};
 		for(let fname in this.tests) {
 			const f = this.tests[fname];
 			Query.prototype[fname] = function(...args) {
@@ -1448,7 +1432,7 @@ class Database {
 		this.constructors[name] = ctor;
 		this.schema[name] = schema;
 	}
-	serialize(data) { // should be checking for schema?
+	serialize(data) { // should be checking for schema?, how about recursion and seen for circular structures?
 		const type = typeof(data);
 		if(type=="function") return data+"";
 		if(!data || type!=="object") return data;
@@ -1462,8 +1446,10 @@ class Database {
 					object[key] = `Date@${value.getTime()}`;
 				} else if(Array.isArray(value)) {
 					object[key] = this.serialize(value);
-				} else {
+				} else if(value["#"]) {
 					object[key] = value["#"];
+				} else {
+					object[key] = this.serialize(value);
 				}
 			} else {
 				object[key] = this.serialize(value);
