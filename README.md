@@ -4,47 +4,47 @@ A JavaScript schema optional extensible key-value backed datastore supporting el
 
 # Contents
 
-[Introduction](#introduction-1)
+[Introduction](#introduction)
 
-	[Example Capabilities](#example-capabilities-1)
+[Example Capabilities](#example-capabilities)
 	
-	[Why AnyWhichWay](#why-anywhichway-1)
+[Why AnyWhichWay](#why-anywhichway)
 	
-	[Assist Us](#assist-us-1)
+[Assist Us](#assist-us)
 	
-[Installation](#installation-1)
+[Installation](#installation)
 
-[Documentation Notes](#documentation-notes-1)
+[Documentation Notes](#documentation-notes)
 
-[Starting A Database](#starting-a-database-1)
+[Starting A Database](#starting-a-database)
 
-[Storing Data](#storing-data-1)
+[Storing Data](#storing-data)
 
-[Retrieving Data](#retrieving-data-1)
+[Retrieving Data](#retrieving-data)
 
-	[Graph Navigation](#graph-navigation-1)
+[Graph Navigation](#graph-navigation)
 	
-	[Query Patterns](#query-patterns-1)
+[Query Patterns](#query-patterns)
 	
-	[Query Commands](#query-commands-1)
+[Query Commands](#query-commands)
 	
-		[Piped Commands](#piped-commands-1)
+[Piped Commands](#piped-commands)
 		
-		[Predicate Filters](#predicate-filters-1)
+[Predicate Filters](#predicate-filters)
 		
-[Joins](#joins-1)
+[Joins](#joins)
 
-[Metadata](#metadata-1)
+[Metadata](#metadata)
 
-[Security](#security-1)
+[Security](#security)
 
-[Transactions](#transactions-1)
+[Transactions](#transactions)
 
-[Triggers](#triggers-1)
+[Triggers](#triggers)
 
-[Extending AnyWhichWay](#extending-anywhichway-1)
+[Extending AnyWhichWay](#extending-anywhichway)
 
-	[Predicates](#predicates-1)
+[Predicates](#predicates)
 	
 [Release History](#release-history-reverse-chronological-order)
 
