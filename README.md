@@ -4,7 +4,7 @@ A JavaScript schema optional extensible key-value backed datastore supporting el
 
 # Contents
 
-## [Introduction](introduction-1)
+## [Introduction]
 
 ### [Example Capabilities]
 
