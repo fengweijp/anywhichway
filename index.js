@@ -215,19 +215,20 @@ class Metadata {
 		this["#"] = defaultIdGenerator(this);
 	}
 }
-class Trigger {
-	constructor(pattern,persist) {
-		Object.assign(this,pattern);
-		if(!persist) {
-			Object.defineProperty(this,"ephemeral",{enumerable:false,configurable:true,writable:true,value:true})
-		}
-		this["#"] = defaultIdGenerator(this);
+function Trigger(pattern,persist) {
+	const object = Object.assign(Object.create(Object.getPrototypeOf(pattern)),pattern);
+	if(!persist) {
+		Object.defineProperty(object,"ephemeral",{enumerable:false,configurable:true,writable:true,value:true})
 	}
+	object["#"] = defaultIdGenerator(object);
+	Object.defineProperty(object,"partition",{enumerable:false,configurable:true,writable:true,value:"triggers"});
+	return object;
 }
 class Query {
-	constructor(database) {
+	constructor(database,partition="data") {
 		this.command = [];
 		this.database = database;
+		this.partition = partition;
 	}
 	async all() {
 		if(this.results) return this.results;
@@ -284,7 +285,7 @@ class Query {
 			Object.defineProperty(pathOrPatternOrId,"isPattern",{enumerable:false,configurable:true,writable:true,value:true})
 		}
 		this.command.push(data =>
-			this.database.data.delete(pathOrPatternOrId||data)
+			this.database[this.partition].delete(pathOrPatternOrId||data)
 		);
 		return this;
 	}
@@ -351,7 +352,7 @@ class Query {
 		return this;
 	}
 	get(pathOrPattern,edgeOnly,ctor = pathOrPattern ? pathOrPattern.instanceof : undefined) {
-		const edge = this.database.data;
+		const edge = this.database[this.partition];
 		if(ctor) {
 			if(typeof(ctor)==="string") {
 				ctor = this.database.constructors[ctor];
@@ -367,7 +368,7 @@ class Query {
 	}
 	join(...pathsOrPatternsAndTest) {
 		const database = this.database,
-			edge = this.database.data,
+			edge = this.database[this.partition],
 			test = pathsOrPatternsAndTest.pop(),
 			pathsOrPatterns = pathsOrPatternsAndTest.map(pathOrPattern => normalizePathOrPattern(pathOrPattern)),
 			generators = []; // need to hanmdle short path! see above get
@@ -426,9 +427,9 @@ class Query {
 		return this;
 	}
 	on(pattern,eventName,callback,persist) {
-		const root = this.database.data,
-			trigger = new Trigger(pattern,persist);
-		this.command.push(async function(data) {
+		const root = this.database.triggers,
+			trigger = Trigger(pattern,persist);
+		this.command.push(async (data) => {
 			trigger[`on${eventName}`] = callback; 
 			await root.put(trigger);
 			return trigger;
@@ -661,30 +662,7 @@ class Database {
 					}
 					if(putOrExpires || create) {
 						if(this.value && typeof(this.value)==="object" && !(this.value instanceof Metadata) && !(this.value instanceof Date)) {
-						/*	let metadata = this.value["^"];
-							if(!metadata) {
-								metadata = this.value["^"] = new Metadata(this.value);
-							}
-							metadata.updated = new Date();
-							if(putOrExpires && typeof(putOrExpires)==="object" && putOrExpires instanceof Date) {
-								metadata.expires = putOrExpires;
-							} else if(typeof(putOrExpires)==="number") {
-								metadata.duration = putOrExpires;
-								metadata.expires = new Date((metadata.updated || metadata.created) + 	metadata.duration);
-							} else if(metadata.duration) {
-								metadata.expires = new Date((metadata.updated || metadata.created) + 	metadata.duration);
-							}*/
 							await storage.setItem(key,JSON.stringify(this));
-							//await database.data.put(metadata); // this should be patch
-							/*if(metadata.expires) {
-								const id = this.value["#"],
-								classname = parseId(id)[0];
-								let edges = await database.data.get(["expires",classname,"month",metadata.expires.getMonth(),id],true,true,true);
-								for await(let edge of edges) {
-									edge.value = id;
-									await edge.save();
-								}
-							}*/
 						} else {
 							await storage.setItem(key,JSON.stringify(this));
 						}
@@ -848,7 +826,7 @@ class Database {
 				}
 				return;
 			}
-			async* get(pathOrPattern="",create,put,edgeOnly) {
+			async* get(pathOrPattern="",create,put,edgeOnly,partition="data") {
 				if(pathOrPattern==="") {
 					yield this;
 					return;
@@ -872,12 +850,12 @@ class Database {
 								const idparts = parseId(value);
 								if(idparts) {
 									if(idparts[0]==="Date") yield new Date(idparts[1]);
-									else yield await database.getObject(value);
+									else yield await database.getObject(value,partition);
 								} else {
 									yield value; // toValue(value)
 								}
 							} else if(type==="object" && value["#"]) {
-								yield await database.getObject(value["#"]);
+								yield await database.getObject(value["#"],partition);
 							} else {
 								yield value; // toValue(value);
 							}
@@ -889,12 +867,12 @@ class Database {
 						if(key==="..") {
 							const parts = this.key.split("/");
 							parts.shift();
-							const child = database.getEdge(parts);
+							const child = database.getEdge(parts,partition);
 							for(let id in child.edges) {
 								let edge = child.edges[id];
 								if(!edge || !edge.loaded) {
 									const classname = parseId(id)[0];
-									edge = child.edges[id] = new Graph(`${database.data.key}/${classname}/${id}`);
+									edge = child.edges[id] = new Graph(`${database[partition].key}/${classname}/${id}`);
 								}
 								await edge.loaded;
 								yield edge.value;
@@ -914,7 +892,7 @@ class Database {
 							const parts = this.key.split("/");
 							parts.shift();
 							parts.pop();
-							const edge = database.getEdge(parts);
+							const edge = database.getEdge(parts,partition);
 							let idparts;
 							for(let value in edge.edges) {
 								if(value.indexOf("Date@")===0) {
@@ -974,7 +952,7 @@ class Database {
 											this.edges[value] = new Graph(`${this.key}/${value}`,toValue(value),put);
 											await this.edges[value].loaded;
 										}
-										yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly);
+										yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly,partition);
 									}
 								}
 								return;
@@ -985,13 +963,13 @@ class Database {
 						try {
 							const test = key;
 							for(let value in this.edges) {
-								let totest = (parseId(value) ? await database.getObject(value) : toValue(value));
+								let totest = (parseId(value) ? await database.getObject(value,partition) : toValue(value));
 								if(test(totest)) { // !==undefined
 									if(!this.edges[value].loaded) {
 										this.edges[value] = new Graph(`${this.key}/${value}`,toValue(value),put);
 										await this.edges[value].loaded;
 									}
-									yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly);
+									yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly,partition);
 								}
 							}
 						} catch(e) {
@@ -1012,10 +990,10 @@ class Database {
 									f = compile(value);
 								if(typeof(f)!=="function") continue;
 								if(testvalue===undefined ? f() : f(testvalue)) {
-									yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly);
+									yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly,partition);
 								}
 							} else {
-								yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly);
+								yield* await this.edges[value].get(parts.slice(),create,put,edgeOnly,partition);
 							}
 						}
 						if(!some && edgeOnly && parts.length===1) yield this;
@@ -1029,9 +1007,9 @@ class Database {
 						let keyparts;
 						if((keyparts=parseId(key))) {
 							const classname = keyparts[0];
-							edge = edge.edges[key] = database.data.edges[classname].edges[key];
+							edge = edge.edges[key] = database[partition].edges[classname].edges[key];
 							if(!edge) {
-								edge = edge.edges[key] = database.data.edges[classname].edges[key] = database.data.edges[key] = new Graph(`${database.data.key}/${key}`,toValue(key),put);
+								edge = edge.edges[key] = database[partition].edges[classname].edges[key] = database.data.edges[key] = new Graph(`${database[partition].key}/${key}`,toValue(key),put);
 							}
 							await edge.loaded;
 							edge.value || (edge.value = {});
@@ -1039,35 +1017,37 @@ class Database {
 							return;
 						}
 						if(edge) {
-							yield* await edge.get(parts.slice(),create,put,edgeOnly);
+							yield* await edge.get(parts.slice(),create,put,edgeOnly,partition);
 						}
 					}
 				}
 			}
-			getParent() {
+			getParent(partition="data") {
 				const path = this.key.split("/");
 				path.shift(); // remove root reference
 				path.pop(); // remove self reference
-				return database.getEdge(path);
+				return database.getEdge(path,partition);
 			}
 			async handle(event,data) {
-				// move triggers to their own keystore like security
 				const etype = `on${event}`;
 				if(!(data instanceof Trigger)) {
-					const sets = [];
+					const sets = [],
+						triggers = {};
 					for(let key in data) {
 						const value = data[key],
 							type = typeof(value);
 						if((!value && type==="object") || type==="function") continue;
 						const set = [];
-						for await (let trigger of database.data.get(["Trigger",key,`*(${toEdgeValue(value)})`,"*"])) {
-							set.push(trigger["#"]);
+						for await (let trigger of database.triggers.get([data.constructor.name,key,`*(${toEdgeValue(value)})`,"*"],false,false,false,"triggers")) {
+							const id = trigger["#"];
+							set.push(id);
+							triggers[id] = trigger;
 						}
 						if(set.length>0) sets.push(set)
 					}
-					const triggers = intersection(...sets);
-					for(let id of triggers) {
-						const trigger = await database.getObject(id);
+					const ids = intersection(...sets);
+					for(let id of ids) {
+						const trigger = triggers[id];
 						if(trigger[etype]) {
 							trigger[etype]({type:event,target:data});
 						}
@@ -1089,18 +1069,6 @@ class Database {
 				}
 				return node;
 			}
-			/*async on(pattern,eventName,callback) {
-				let handler = this[`on${eventName}`][callback];
-				if(!handler) {
-					handler = this[`on${eventName}`][callback] = {
-							fn: callback,
-							patterns: []
-					}
-				}
-				handler.patterns.push(pattern);
-				await this.save();
-				return this;
-			}*/
 			async patch(data,object) {
 				// should do recursive check to make sure there ar echanged
 				if(!data["#"] && (!object || !object["#"])) throw TypeError("Can't patch object that lacks an id");
@@ -1174,7 +1142,8 @@ class Database {
 			}
 			async put(data,durationOrDate) {	
 				await this.loaded;
-				const type = typeof(data);
+				const type = typeof(data),
+					partition = data.partition || "data";
 				if(data && type==="object") {
 					const save = !data.ephemeral;
 					let metadata = data["^"];
@@ -1202,55 +1171,55 @@ class Database {
 						if(seen[unique]) continue;
 						seen[unique] = true;
 						uatoms.push([ctor,id,key,value]);
-						let edge = database.data.edges[classname];
-						if(!edge || !edge.loaded) edge = database.data.edges[classname] = new Graph(`${database.data.key}/${classname}`,ctor===Date ? (...args) => new Date(...args) : ctor===Object ? () => new Object() : ctor,save);
+						let edge = database[partition].edges[classname];
+						if(!edge || !edge.loaded) edge = database[partition].edges[classname] = new Graph(`${database[partition].key}/${classname}`,ctor===Date ? (...args) => new Date(...args) : ctor===Object ? () => new Object() : ctor,save);
 						promises.push(edge.loaded);
 						if(value && typeof(value)==="object") {
-							if(!database.data.edges[value.constructor.name].edges[value["#"]]) {
-								database.data.edges[value.constructor.name].edges[value["#"]] = new Graph(`${database.data.key}/${value.constructor.name}/${value["#"]}`,value,save);
-								promises.push(database.data.edges[value.constructor.name].edges[value["#"]].loaded);
-								promises.push(database.data.edges[value.constructor.name].save());
+							if(!database[partition].edges[value.constructor.name].edges[value["#"]]) {
+								database[partition].edges[value.constructor.name].edges[value["#"]] = new Graph(`${database[partition].key}/${value.constructor.name}/${value["#"]}`,value,save);
+								promises.push(database[partition].edges[value.constructor.name].edges[value["#"]].loaded);
+								promises.push(database[partition].edges[value.constructor.name].save());
 							} else {
 								// patch?
 							}
 						}
 					}
 					// should not this be first to save the data as soon as possible after class creation if necesdsary
-					database.data.edges[data.constructor.name].edges[data["#"]] = new Graph(`${database.data.key}/${data.constructor.name}/${data["#"]}`,data,durationOrDate||save);
-					promises.push(database.data.edges[data.constructor.name].edges[data["#"]].loaded);
-					await database.data.edges[data.constructor.name].save();
+					database[partition].edges[data.constructor.name].edges[data["#"]] = new Graph(`${database[partition].key}/${data.constructor.name}/${data["#"]}`,data,durationOrDate||save);
+					promises.push(database[partition].edges[data.constructor.name].edges[data["#"]].loaded);
+					await database[partition].edges[data.constructor.name].save();
 					for(let [ctor,id,key,value] of uatoms) {
 						if(value && typeof(value)==="object") {
 							if(!value["#"]) continue;
 							value = value["#"];
 						}
 							const classname = ctor.name;
-							let edge = database.data.edges[classname];
+							let edge = database[partition].edges[classname];
 								if(id==="..") {
 									const parentclass = parseId(value)[0];
-									edge = database.data.edges[classname].edges[key];
+									edge = database[partition].edges[classname].edges[key];
 									if(!edge || !edge.loaded) {
-										edge = database.data.edges[classname].edges[key] = new Graph(`${database.data.key}/${classname}/${key}`,key,save);
-										promises.push(await database.data.edges[classname].save());
+										edge = database[partition].edges[classname].edges[key] = new Graph(`${database[partition].key}/${classname}/${key}`,key,save);
+										promises.push(await database[partition].edges[classname].save());
 									}
 									promises.push(edge.loaded);
-									edge.edges[value] = database.data.edges[parentclass].edges[value];
+									edge.edges[value] = database[partition].edges[parentclass].edges[value];
 									promises.push(edge.save());
 								} else {
 									edge = edge.edges[key];
 									if(!edge || !edge.loaded) {
-										edge = database.data.edges[classname].edges[key] = new Graph(`${database.data.key}/${classname}/${key}`,key,save);
-										promises.push(database.data.edges[classname].save());
+										edge = database[partition].edges[classname].edges[key] = new Graph(`${database[partition].key}/${classname}/${key}`,key,save);
+										promises.push(database[partition].edges[classname].save());
 									}
 									promises.push(edge.loaded);
 									const evalue = key==="#" ? value : toEdgeValue(value);
 									edge = edge.edges[evalue];
 									if(!edge || !edge.loaded) {
-										edge = database.data.edges[classname].edges[key].edges[evalue] = new Graph(`${database.data.key}/${classname}/${key}/${evalue}`,value,save);
-										promises.push(database.data.edges[classname].edges[key].save());
+										edge = database[partition].edges[classname].edges[key].edges[evalue] = new Graph(`${database[partition].key}/${classname}/${key}/${evalue}`,value,save);
+										promises.push(database[partition].edges[classname].edges[key].save());
 									}
 									promises.push(edge.loaded);
-									edge.edges[id] = database.data.edges[classname].edges[id];
+									edge.edges[id] = database[partition].edges[classname].edges[id];
 									promises.push(edge.save());
 								}
 					}
@@ -1314,7 +1283,8 @@ class Database {
 		this.data.isRoot = true;
 		this.security = new Graph("security");
 		this.security.isRoot = true;
-		
+		this.triggers = new Graph("triggers");
+		this.triggers.isRoot = true;
 		this.expire();
 	}
 	async deserialize(data) {
@@ -1359,22 +1329,22 @@ class Database {
 		}
 		expireData();
 	}
-	getEdge(path,root="data") {
+	getEdge(path,partition="data") {
 		const parts = Array.isArray(path) ? path.slice() : path.split("/");
 		let part,
-			edge = this[root];
+			edge = this[partition];
 		while((part = parts.shift()) && (edge = edge.edges[part]));
 		if(parts.length===0) return edge;
 	}
-	async getObject(id) {
+	async getObject(id,partition="data") {
 		const parts = id.split("@"),
 			classname = parts[0];
 		if(classname==="Date") return new Date(parseInt(parts[1]));
-		let edge = this.data.edges[classname] && this.data.edges[classname].edges[id] ? this.data.edges[classname].edges[id] : undefined;
+		let edge = this[partition].edges[classname] && this[partition].edges[classname].edges[id] ? this[partition].edges[classname].edges[id] : undefined;
 		if(!edge) return;
 		let value = edge.value;
 		if(!value) return;
-		const ctor = this.constructors[classname] || compile(this.data.edges[classname].value) || Object;
+		const ctor = this.constructors[classname] || compile(this[partition].edges[classname].value) || Object;
 		if(value.constructor!==ctor) {
 			edge.value = Object.assign(Object.create(ctor.prototype),value);
 		}

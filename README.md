@@ -537,6 +537,8 @@ Note: The function `outside` returns a function that take a single argument, `va
 
 # Release History (reverse chronological order)
 
+2018-03-16 - ALPHA v0.0.17a Moved triggers to their own partition for performance.
+
 2018-03-16 - ALPHA v0.0.16a enhanced documentation, added `ondelete` handling.
 
 2018-03-14 - ALPHA v0.0.15a enhanced documentation.
