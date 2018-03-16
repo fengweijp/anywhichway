@@ -4,9 +4,9 @@ A JavaScript schema optional extensible key-value backed datastore supporting el
 
 # Contents
 
-## [Introduction]
+## [Introduction](#introduction-1)
 
-### [Example Capabilities]
+### [Example Capabilities](#example-capabilities-1)
 
 ### [Why AnyWhichWay]
 
