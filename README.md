@@ -5,47 +5,26 @@ A JavaScript schema optional extensible key-value backed datastore supporting el
 # Contents
 
 ## [Introduction](#introduction-1)
-
-### [Example Capabilities](#example-capabilities-1)
-
-### [Why AnyWhichWay](#why-anywhichway-1)
-
-### [Assist Us](#assist-us-1)
-
+	### [Example Capabilities](#example-capabilities-1)
+	### [Why AnyWhichWay](#why-anywhichway-1)
+	### [Assist Us](#assist-us-1)
 ## [Installation](#installation-1)
-
 ## [Documentation Notes](#documentation-notes-1)
-
 ## [Starting A Database](#starting-a-database-1)
-
 ## [Storing Data](#storing-data-1)
-
 ## [Retrieving Data](#retrieving-data-1)
-
-### [Graph Navigation](#graph-navigation-1)
-
-### [Query Patterns](#query-patterns-1)
-
-### [Query Commands](#query-commands-1)
-
-### [Piped Commands](#piped-commands-1)
-
-### [Predicate Filters](#predicate-filters-1)
-
+	### [Graph Navigation](#graph-navigation-1)
+	### [Query Patterns](#query-patterns-1)
+	### [Query Commands](#query-commands-1)
+	### [Piped Commands](#piped-commands-1)
+	### [Predicate Filters](#predicate-filters-1)
 ## [Joins](#joins-1)
-
 ## [Metadata](#metadata-1)
-
 ## [Security](#security-1)
-
 ## [Transactions](#transactions-1)
-
 ## [Triggers](#triggers-1)
-
 ## [Extending AnyWhichWay](#extending-anywhichway-1)
-
-### [Predicates](#predicates-1)
-
+	### [Predicates](#predicates-1)
 ## [Release History](#release-history-reverse-chronological-order)
 
 ## Introduction
@@ -226,7 +205,7 @@ mydb.query().put({name:"Joe",age:27},365*24*60*60*1000).exec(); // expires in ap
 mydb.query().put({name:"Joe",age:27},new Date("2040/08/01")).exec(); // expires Wed Aug 01 2040 00:00:00
 ```
 
-Note: Note the default expiration processing interval in AnyWhichWay is 30 minutes, so durations less than 30*60*1000 are not useful unless this is changed.
+Note: Note the default expiration processing interval in AnyWhichWay is 30 minutes, so durations less than `30*60*1000` are not useful unless this is changed.
 
 You can use AnyWhichWay like a regular key-value store. Just be careful not to use a classname as the key or you will over-write any instances of that class along with the associated index. Best practice is to simply prefix your key path with the something unique e.g. `kv/mykey` vs just `mykey`.
 
