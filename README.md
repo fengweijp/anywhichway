@@ -4,7 +4,7 @@ A JavaScript schema optional extensible key-value backed datastore supporting el
 
 # Contents
 
-## [Introduction][Introduction]
+## [Introduction](introduction-1)
 
 ### [Example Capabilities]
 
@@ -48,7 +48,7 @@ A JavaScript schema optional extensible key-value backed datastore supporting el
 
 ## [Release History][Release History]
 
-## [Introduction]:Introduction
+## Introduction
 
 AnyWhichWay can be backed by almost any key-value store that exposes `get(key)`, `set(key,data)`, `del(key)` or similar methods synchronously or asynchronously. 
 
