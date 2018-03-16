@@ -5,26 +5,47 @@ A JavaScript schema optional extensible key-value backed datastore supporting el
 # Contents
 
 1) [Introduction](#introduction-1)
+
 	1.1) [Example Capabilities](#example-capabilities-1)
+	
 	1.2) [Why AnyWhichWay](#why-anywhichway-1)
+	
 	1.3) [Assist Us](#assist-us-1)
+	
 2) [Installation](#installation-1)
+
 3) [Documentation Notes](#documentation-notes-1)
+
 4) [Starting A Database](#starting-a-database-1)
+
 5) [Storing Data](#storing-data-1)
+
 6) [Retrieving Data](#retrieving-data-1)
+
 	6.1) [Graph Navigation](#graph-navigation-1)
+	
 	6.2) [Query Patterns](#query-patterns-1)
+	
 	6.3) [Query Commands](#query-commands-1)
+	
 		6.3.1) [Piped Commands](#piped-commands-1)
+		
 		6.3.2) [Predicate Filters](#predicate-filters-1)
+		
 7) [Joins](#joins-1)
+
 8) [Metadata](#metadata-1)
+
 9) [Security](#security-1)
+
 10) [Transactions](#transactions-1)
+
 11) [Triggers](#triggers-1)
+
 12) [Extending AnyWhichWay](#extending-anywhichway-1)
+
 	12.1) [Predicates](#predicates-1)
+	
 13) [Release History](#release-history-reverse-chronological-order)
 
 ## Introduction
@@ -64,7 +85,7 @@ Note: `idbkvstore` is currently very slow for `put`. In fact, things will run fa
 ## Why AnyWhichWay
 
 When processing data in JavaScript, one usually ends-up collecting things into arrays and then processing the arrays to sort, filter, reduce etc. This can consume large amounts of RAM and also means that
-result processing can't start until an array is fully populated, particularly with respect to simulating joins. AnyWhichWay provies a full set of array like functions that are actually backed by asynchronous
+result processing can't start until an array is fully populated, particularly with respect to simulating joins. AnyWhichWay provides a full set of array like functions that are actually backed by asynchronous
 generators. Even the join processor is an asynchronous generator that processes one tuple at a time. When processing large volumes of data, this ensures the non-blocking return of initial results as fast as possible while limiting RAM usage.
 
 With AnyWhichWay, if you know the functions available on an array you know more than 80% of what is required to query and process data in a manner far more rich than many alternatives with a far smaller footprint. It is currenlty about 12K uncompressed. We anticipate it will be about 20K uncompressed and 12K to 15K compressed when BETA and PRODUCTION are released. Granted, AnyWhichWay is in ALPHA now, so there are also things missing, e.g. conflict resolution, full transaction management.
