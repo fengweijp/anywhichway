@@ -8,45 +8,45 @@ A JavaScript schema optional extensible key-value backed datastore supporting el
 
 ### [Example Capabilities](#example-capabilities-1)
 
-### [Why AnyWhichWay]
+### [Why AnyWhichWay](#why-anywhichway-1)
 
-### [Assist Us]
+### [Assist Us](#assist-us-1)
 
-## [Installation]
+## [Installation](#installation-1)
 
-## [Documentation Notes]
+## [Documentation Notes](#documentation-notes-1)
 
-## [Starting A Database]
+## [Starting A Database](#starting-a-database-1)
 
-## [Storing Data]
+## [Storing Data](#storing-data-1)
 
-## [Retrieving Data]
+## [Retrieving Data](#retrieving-data-1)
 
-### [Graph Navigation]
+### [Graph Navigation](#graph-navigation-1)
 
-### [Query Patterns]
+### [Query Patterns](#query-patterns-1)
 
-### [Query Commands][Query Commands]
+### [Query Commands](#query-commands-1)
 
-### [Piped Commands][Piped Commands]
+### [Piped Commands](#piped-commands-1)
 
-### [Predicate Filters][Predicate Filters]
+### [Predicate Filters](#predicate-filters-1)
 
-## [Joins][Joins]
+## [Joins](#joins-1)
 
-## [Metadata][Metadata]
+## [Metadata](#metadata-1)
 
-## [Security][Security]
+## [Security](#security-1)
 
-## [Transactions][Transactions]
+## [Transactions](#transactions-1)
 
-## [Triggers][Triggers]
+## [Triggers](#triggers-1)
 
-## [Extending AnyWhichWay][Extending AnyWhichWay]
+## [Extending AnyWhichWay](#extending-anywhichway-1)
 
-### [Predicates][Predicates]
+### [Predicates](#predicates-1)
 
-## [Release History][Release History]
+## [Release History](#release-history-1)
 
 ## Introduction
 
