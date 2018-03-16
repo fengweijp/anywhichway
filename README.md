@@ -4,27 +4,27 @@ A JavaScript schema optional extensible key-value backed datastore supporting el
 
 # Contents
 
-## [Introduction][Introduction]
+## [Introduction]
 
-### [Example Capabilities][Example Capabilities]
+### [Example Capabilities]
 
-### [Why AnyWhichWay][Why AnyWhichWay]
+### [Why AnyWhichWay]
 
-### [Assist Us][Assit Us]
+### [Assist Us]
 
-## [Installation][Installation]
+## [Installation]
 
-## [Documentation Notes][Documentation Notes]
+## [Documentation Notes]
 
-## [Starting A Database][Starting A Database]
+## [Starting A Database]
 
-## [Storing Data][Storing Data]
+## [Storing Data]
 
-## [Retrieving Data][Retrieving Data]
+## [Retrieving Data]
 
-### [Graph Navigation][Graph Navigation]
+### [Graph Navigation]
 
-### [Query Patterns][Query Patterns]
+### [Query Patterns]
 
 ### [Query Commands][Query Commands]
 
