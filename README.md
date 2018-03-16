@@ -4,49 +4,49 @@ A JavaScript schema optional extensible key-value backed datastore supporting el
 
 # Contents
 
-1) [Introduction](#introduction-1)
+[Introduction](#introduction-1)
 
-	1.1) [Example Capabilities](#example-capabilities-1)
+	[Example Capabilities](#example-capabilities-1)
 	
-	1.2) [Why AnyWhichWay](#why-anywhichway-1)
+	[Why AnyWhichWay](#why-anywhichway-1)
 	
-	1.3) [Assist Us](#assist-us-1)
+	[Assist Us](#assist-us-1)
 	
-2) [Installation](#installation-1)
+[Installation](#installation-1)
 
-3) [Documentation Notes](#documentation-notes-1)
+[Documentation Notes](#documentation-notes-1)
 
-4) [Starting A Database](#starting-a-database-1)
+[Starting A Database](#starting-a-database-1)
 
-5) [Storing Data](#storing-data-1)
+[Storing Data](#storing-data-1)
 
-6) [Retrieving Data](#retrieving-data-1)
+[Retrieving Data](#retrieving-data-1)
 
-	6.1) [Graph Navigation](#graph-navigation-1)
+	[Graph Navigation](#graph-navigation-1)
 	
-	6.2) [Query Patterns](#query-patterns-1)
+	[Query Patterns](#query-patterns-1)
 	
-	6.3) [Query Commands](#query-commands-1)
+	[Query Commands](#query-commands-1)
 	
-		6.3.1) [Piped Commands](#piped-commands-1)
+		[Piped Commands](#piped-commands-1)
 		
-		6.3.2) [Predicate Filters](#predicate-filters-1)
+		[Predicate Filters](#predicate-filters-1)
 		
-7) [Joins](#joins-1)
+[Joins](#joins-1)
 
-8) [Metadata](#metadata-1)
+[Metadata](#metadata-1)
 
-9) [Security](#security-1)
+[Security](#security-1)
 
-10) [Transactions](#transactions-1)
+[Transactions](#transactions-1)
 
-11) [Triggers](#triggers-1)
+[Triggers](#triggers-1)
 
-12) [Extending AnyWhichWay](#extending-anywhichway-1)
+[Extending AnyWhichWay](#extending-anywhichway-1)
 
-	12.1) [Predicates](#predicates-1)
+	[Predicates](#predicates-1)
 	
-13) [Release History](#release-history-reverse-chronological-order)
+[Release History](#release-history-reverse-chronological-order)
 
 ## Introduction
 
