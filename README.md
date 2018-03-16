@@ -46,7 +46,7 @@ A JavaScript schema optional extensible key-value backed datastore supporting el
 
 ### [Predicates](#predicates-1)
 
-## [Release History](#release-history-1)
+## [Release History](#release-history-reverse-chronological-order)
 
 ## Introduction
 
@@ -158,7 +158,7 @@ Node v9.7.1 (the most recent at this writing) must be run with the `--harmony` f
 
 Babel transpiled code will not work. Babel does not seem to generate correct asynchronous generators.
 
-# Documentation Notes [Documentation Notes]
+# Documentation Notes
 
 When "Object" is capitalized it refers to a direct instance of the class Object. When "object" is lower case it refers to an instance of any type of class except Array, which uses the term "array".
 
@@ -166,7 +166,7 @@ The property "#" is the default used for unique uuidv4 ids on objects in AnyWhic
 
 The property "^" is the default used for object metadata. See the section Metadata for more info.
 
-# Starting A Database [Starting A Database]
+# Starting A Database
 
 Databases are instantiated with 2 arguments, a storage instance and and options object.
 
@@ -195,7 +195,7 @@ The options object supports the following:
 
 
 
-# Storing Data [Storing Data]
+# Storing Data
 
 To store an object and have it indexed, just use 'put(object)`, e.g.
 
@@ -233,9 +233,9 @@ You can use AnyWhichWay like a regular key-value store. Just be careful not to u
 Not yet impmented in the ALPHA is `patch`. For now a `delete` followed by a `put` is required.
 
 
-# Retrieving Data [Retrieving Data]
+# Retrieving Data
 
-## Graph Navigation [Graph Navigation]
+## Graph Navigation
 
 Data can be retrieved using a graph path, e.g.:
 
@@ -298,7 +298,7 @@ Any in-line test can be added as compiled tests to avoid this issue. See Extendi
 
 It should not be overlooked that by design graph paths can be escaped and passed directly over a network as `get` requests!
 
-## Query Patterns [Query Patterns]
+## Query Patterns
 
 Query patterns are objects. If the query pattern is an instance of a specific kind of object, then only those kinds of objects will be matched.
 
@@ -309,13 +309,13 @@ Property values in query patterns may be literals or functions that return 'fals
 mydb.query().get({age:value => value > 27,address:{state:WA},instanceof:Person}).all(); 
 ```
 
-## Query Commands [Query Commands]
+## Query Commands
 
 Queries are effectively a series of pipes or predicate filters that change the nature of the results or produce other side-effects. Internally, all query commands are wrapped in a generator functions that `yield` each result to the next command.
 
 Queries are initiated using `<db>.query()`.
 
-## Piped Commands [Piped Commands]
+### Piped Commands
 
 `all()` - Yields the values of a query as an array.
 
@@ -408,7 +408,7 @@ function() { return this.<query command 1>.<query command 2>...<query command n>
 
 `yield()` - Assumes an array is being passed from upstream and yields each value separately.
 
-## Predicate Filters [Predicate Filters]
+### Predicate Filters
 
 Yield down the chain only those values that pass the test. These are also available as inline functions for paths.
   
@@ -443,7 +443,7 @@ Yield down the chain only those values that pass the test. These are also availa
 `not(f)` - Yields values where `!f(value)` is truthy.
 
 
-# Joins [Joins]
+# Joins
 
 `join(...pathsOrPatterns,test)` - Yields arrays of value combinations that satisfy `test(<array combination>)`. 
 
@@ -454,7 +454,7 @@ By convention you should destructure the argument to test. The example below wil
 ```
 
 
-# Metadata [Metadata]
+# Metadata
 
 The signature of metadata is: `{created:Date,updated:Date,expires:Date,duration:milliseconds}`.
 
@@ -463,7 +463,7 @@ With the exception of Dates, unique object uuidv4 ids are stored on objects them
 Dates have the id signature `Date@<milliseconds>`.
 
 
-# Security [Security]
+# Security
 
 All security is expressed using graph paths and a special query command `secure(path,function)`. This allows the application of security at any level desired, e.g.
 
@@ -492,7 +492,7 @@ used for reference only. Attempts to change it will result in an error. To ignor
 
 Returning `true` (not just a truthy) will allow the action.
 
-# Transactions [Transactions]
+# Transactions
 
 Writes of objects that do not contain nested objects or that contain only nested objects of classes that are not registered with schema are atomic and done before indexing. This is somewhat transactional; however, if there is a failure, indexes may be incomplete.
 
@@ -503,7 +503,7 @@ definitions; however, this can be changed simply by calling `register` with thre
 
 The above being said, a base design for full transactional capability has been envisioned and the capability is possible.
 
-# Triggers [Triggers]
+# Triggers
 
 `on(pattern,eventType,callback,persist)` - Ads `callback` as a trigger on `pattern` for the event types `put`, `patch`, `delete`.
 
