@@ -48,7 +48,7 @@ A JavaScript schema optional extensible key-value backed datastore supporting el
 
 ## [Release History][Release History]
 
-## Introduction [Introduction]
+## Introduction
 
 AnyWhichWay can be backed by almost any key-value store that exposes `get(key)`, `set(key,data)`, `del(key)` or similar methods synchronously or asynchronously. 
 
@@ -82,7 +82,7 @@ This version has been tested with: [localStorage](https://developer.mozilla.org/
 
 Note: `idbkvstore` is currently very slow for `put`. In fact, things will run faster against a remote Redis store.
 
-## Why AnyWhichWay [Why AnyWhichWay]
+## Why AnyWhichWay
 
 When processing data in JavaScript, one usually ends-up collecting things into arrays and then processing the arrays to sort, filter, reduce etc. This can consume large amounts of RAM and also means that
 result processing can't start until an array is fully populated, particularly with respect to simulating joins. AnyWhichWay provies a full set of array like functions that are actually backed by asynchronous
@@ -90,7 +90,7 @@ generators. Even the join processor is an asynchronous generator that processes 
 
 With AnyWhichWay, if you know the functions available on an array you know more than 80% of what is required to query and process data in a manner far more rich than many alternatives with a far smaller footprint. It is currenlty about 12K uncompressed. We anticipate it will be about 20K uncompressed and 12K to 15K compressed when BETA and PRODUCTION are released. Granted, AnyWhichWay is in ALPHA now, so there are also things missing, e.g. conflict resolution, full transaction management.
 
-## Example Capabilities [Example Capabilities]
+## Example Capabilities
 
 1) Graph navigation over fully indexed data supporting:
 
@@ -141,14 +141,14 @@ With AnyWhichWay, if you know the functions available on an array you know more 
 	a) `put({passwordResetKey: 12345},30*60*1000})` - inserts a key for password reset that expires and is deleted in 30 minutes.
 	
 	
-## Assist Us [Assist Us]
+## Assist Us
 
 If you like the concept of AnyWhichWay give us a star here on GitHub or npmjs.
 
 Help spread the word by a comment or up vote on [echojs](http://www.echojs.com/news/25933) or a <a href="http://twitter.com/home?status=Looks interesting https://github.com/anywhichway/anywhichway/">Tweet</a>.
 
 
-# Installation [Installation]
+# Installation
 
 `npm install anywhichway`
 
