@@ -171,7 +171,8 @@ The property "^" is the default used for object metadata. See the section Metada
 Databases are instantiated with 2 arguments, a storage instance and and options object.
 
 ```javascript
-const mydb = new Database(localStorage,{inline:true,expirationInterval=10*1000}),
+const mydb = new Database(localStorage,{inline:true,
+                                        expirationInterval=10*1000})
 ```
 
 or
@@ -200,30 +201,35 @@ The options object supports the following:
 To store an object and have it indexed, just use 'put(object)`, e.g.
 
 ```javascript
-mydb.query().put({name:"Joe",age:27}).exec(); // inserts an Object
+// inserts an Object
+mydb.query().put({name:"Joe",age:27}).exec();
 
+// inserts a Person
 const p = new Person({name:"Joe",age:27});
-mydb.query().put({name:"Joe",age:27}).exec(); // inserts a Person
-
-mydb.query().put({name:"Joe",age:27,instanceof:"Person"}).exec(); // inserts a Person by coercing the data
+mydb.query().put({name:"Joe",age:27}).exec();
+ 
+ // inserts a Person by coercing the data
+mydb.query().put({name:"Joe",age:27,instanceof:"Person"}).exec();
 
 ```
 
 You can return all the objects inserted instead of just executing:
 
 ```javascript
-// inserts two Objects and yields [{name:"Joe",age:27},{name:"Joe",age:27}]
-await results = mydb.get().put({name:"Joe",age:27}).put({name:"Mary",age:26}).all(); 
+// inserts 2 Objects, yields [{name:"Joe",age:27},{name:"Joe",age:27}]
+await results = mydb.get().put({name:"Joe",age:27})
+                          .put({name:"Mary",age:26}).all(); 
 
 ```
 
 You can also set a duration in milliseconds or expiration date/time with a second argument:
 
 ```javascript
-mydb.query().put({name:"Joe",age:27},365*24*60*60*1000).exec(); // expires in approximately one year
+// expires in approximately one year
+mydb.query().put({name:"Joe",age:27},365*24*60*60*1000).exec(); 
 
-
-mydb.query().put({name:"Joe",age:27},new Date("2040/08/01")).exec(); // expires Wed Aug 01 2040 00:00:00
+// expires Wed Aug 01 2040 00:00:00
+mydb.query().put({name:"Joe",age:27},new Date("2040/08/01")).exec();
 ```
 
 Note: Note the default expiration processing interval in AnyWhichWay is 30 minutes, so durations less than `30*60*1000` are not useful unless this is changed.
@@ -252,7 +258,8 @@ mydb.query().get(["Object","address","city","*").all();
 Graph references generally start with a classname followed by a property and a value or another property if the value is itself an object, e.g.
 
 ```javascript
-{address:{city:"Bainbridge Island",state:"WA",zipcode:{base:98110,plus4:0000}}}
+{address:{city:"Bainbridge Island",state:"WA",
+          zipcode:{base:98110,plus4:0000}}}
 ```
 is matched by:
 
@@ -306,7 +313,9 @@ Property values in query patterns may be literals or functions that return 'fals
 
 ```javascript
 // yield all Person's over 27 in the state of Washington.
-mydb.query().get({age:value => value > 27,address:{state:WA},instanceof:Person}).all(); 
+mydb.query().get({age:value => value > 27,
+                  address:{state:WA},
+                  instanceof:Person}).all(); 
 ```
 
 ## Query Commands
@@ -344,8 +353,9 @@ Queries are initiated using `<db>.query()`.
 `fork(...queryFragmentFunctions)` - creates multiple yield streams with copies of the value passed to `fork`. If an array is passed and it contains objects, each object is also copied. A `queryFragmentFunction` takes the form:
 
 ```javascript
- // "this" takes the place of "<database>.query()" and there should be no "all()" or "exec()" at the end.
-function() { return this.<query command 1>.<query command 2>...<query command n>; }
+// "this" takes the place of "<database>.query()"
+// there should be no "all()" or "exec()" at the end.
+function() { return this.<command 1>.<command 2>...<command n>; }
 ```
 		
 `get(pathOrPattern)` - See Query Patterns below.
@@ -447,10 +457,11 @@ Yield down the chain only those values that pass the test. These are also availa
 
 `join(...pathsOrPatterns,test)` - Yields arrays of value combinations that satisfy `test(<array combination>)`. 
 
-By convention you should destructure the argument to test. The example below will only yield combinations where the names are identical:
+By convention you should destructure the argument to test. The test below will only yield combinations where the names are identical:
 
 ```javascript
-([object1,object2]) => object1.name && object2.name && object1.name===object2.name);
+[object1,object2] => 
+  object1.name && object2.name && object1.name===object2.name;
 ```
 
 
@@ -537,7 +548,9 @@ Note: The function `outside` returns a function that take a single argument, `va
 
 # Release History (reverse chronological order)
 
-2018-03-16 - ALPHA v0.0.17a Moved triggers to their own partition for performance.
+2018-03-16 - ALPHA v0.0.18a enhanced documentation.
+
+2018-03-16 - ALPHA v0.0.17a moved triggers to their own partition for performance.
 
 2018-03-16 - ALPHA v0.0.16a enhanced documentation, added `ondelete` handling.
 
