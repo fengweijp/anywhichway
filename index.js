@@ -217,6 +217,7 @@ class Metadata {
 }
 function Trigger(pattern,persist) {
 	const object = Object.assign(Object.create(Object.getPrototypeOf(pattern)),pattern);
+	Object.defineProperty(object,"constructor",{enumerable:false,configurable:true,writable:true,value:pattern.constructor});
 	if(!persist) {
 		Object.defineProperty(object,"ephemeral",{enumerable:false,configurable:true,writable:true,value:true})
 	}
@@ -434,6 +435,11 @@ class Query {
 			await root.put(trigger);
 			return trigger;
 		});
+		return this;
+	}
+	patch(pattern,data) {
+		const root = this.database.data;
+		this.command.push(async function*() { for await (let object of root.patch(pattern,data)) yield object; })
 		return this;
 	}
 	pop(f) {
@@ -1028,7 +1034,7 @@ class Database {
 				path.pop(); // remove self reference
 				return database.getEdge(path,partition);
 			}
-			async handle(event,data) {
+			async handle(event,data,changes) {
 				const etype = `on${event}`;
 				if(!(data instanceof Trigger)) {
 					const sets = [],
@@ -1049,7 +1055,7 @@ class Database {
 					for(let id of ids) {
 						const trigger = triggers[id];
 						if(trigger[etype]) {
-							trigger[etype]({type:event,target:data});
+							trigger[etype]( {type:event,target:data,changes});
 						}
 					}
 				}
@@ -1069,75 +1075,88 @@ class Database {
 				}
 				return node;
 			}
-			async patch(data,object) {
-				// should do recursive check to make sure there ar echanged
-				if(!data["#"] && (!object || !object["#"])) throw TypeError("Can't patch object that lacks an id");
-				if(object) data["#"] = object["#"];
-				if(!object) object = await database.getObject(data["#"]);
-				if(!object) return this.put(data);
-				await this.loaded;
-				const type = typeof(data),
-					patches = [],
-					puts = [];
-				if(data && type==="object") {
-					const atoms = await this.atomize(data,false),
-						ids = [];
-					for(let [id] of atoms) {
-						if(id && !ids.includes(id)) ids.push(id);
-					}
-					for(let id of ids) {
-						let edge = database.data.edges[id],
-							object = edge.value;
-						if(object) {
-							for(let okey in object) {
-								for(let i=0;i<atoms.length;i++) {
-									const atom = atoms[i];
-									if(!atom) continue;
-									const value = toEdgeValue(atom[2]),
-										newvalue = atom[2];
-									if(atom[0]===id) {
-										let key, oldvalue;
-										if(!object[atom[1]]) {
-											atoms[i] = null;
-											key = atom[1];
-										} else if(atom[1]===okey) {
-											key = okey;
-											oldvalue = object[okey];
-										} else {
-											continue;
-										}
-										if(typeof(newvalue)!=="undefined") {
-											if(!database.data.edges[key] || !database.data.edges[key].loaded) {
-												database.data.edges[key] = new Graph(`${database.data.key}/${key}`,key,key);
-												await database.data.edges[key].loaded;
-											}
-											if(!database.data.edges[key].edges[value] || !database.data.edges[key].edges[value].loaded) {
-												database.data.edges[key].edges[value] = new Graph(`${database.data.edges[key].key}/${value}`,newvalue,newvalue);
-												await database.data.edges[key].edges[value].loaded;
-											}
-										}
-										if(oldvalue!==undefined && oldvalue!==newvalue) {
-											const value = toEdgeValue(oldvalue);
-											if(database.data.edges[key].edges[value].edges[id]) {
-												patches.push({edge:database.data.edges[key],oldvalue,newvalue,object});
-												delete database.data.edges[key].edges[value].edges[id];
-												if(Object.keys(database.data.edges[key].edges[value].edges).length===0) delete database.data.edges[key].edges[value];
-											}
-										}
-										if(object[atom[1]]) break;
-									}
-								}
+			async* patch(pattern,data) {
+				for await (let object of this.find(pattern)) {
+					const additions = {}, // index additions
+						changes = {}, // index changes
+						deletions = {}, // index deletions
+						id = object["#"],
+						classname = object.constructor.name,
+						metadata = object["^"];
+					for(let key in data) {
+						const value = data[key];
+						if(object[key]===undefined) {
+							additions[key] = object[key] = value;
+						} else if(object[key]!==value){
+							deletions[key] = object[key];
+							if(value===undefined) {
+								delete object[key];
+							} else {
+								changes[key] = object[key] = value;
 							}
 						}
 					}
-					Object.assign(database.data.edges[object["#"]].value,data);
-					await database.data.edges[object["#"]].save();
-				} else {
-					const value = toValue(data);
-					this.edges = {}; // should we add delete handling
-					this.edges[value] = new Graph(`${this.key}/${value}`,data);
-					patches.push({edge:this,data});
-					await this.save();
+					metadata.updated = new Date();
+					if(metadata.duration) {
+						metadata.expires = new Date((metadata.updated || metadata.created) + 	metadata.duration);
+					}
+					database.data.edges[classname].edges[id].value = object;
+					await database.data.edges[classname].edges[id].save();
+					const edge = database.data.edges[classname];
+					for(let updates of [additions,changes]) {
+						for(let key in updates) {
+							const value = updates[key],
+								evalue = toEdgeValue(value);
+							if(!edge.edges[key] || !edge.edges[key].loaded) {
+								edge.edges[key] = new Graph(`${database.data.key}/${classname}/${key}`,key,true);
+							}
+							await edge.edges[key].loaded;
+							if(!edge.edges[key].edges[evalue] || !edge.edges[key].edges[evalue].loaded) {
+								edge.edges[key].edges[evalue] =  new Graph(`${database.data.key}/${classname}/${key}/${evalue}`,value,true);
+							}
+							await edge.edges[key].edges[evalue].loaded;
+							edge.edges[key].edges[evalue].edges[id] = database.data.edges[classname].edges[id];
+							await edge.edges[key].edges[evalue].save();
+						}
+					}
+					for(let key in deletions) {
+						const value = deletions[key],
+							evalue = toEdgeValue(value);
+						if(!edge.edges[key]) continue;
+						if(!edge.edges[key].loaded) {
+							const e = new Graph(`${database.data.key}/${classname}/${key}`);
+							await e.loaded;
+							if(e.value===undefined) continue;
+							edge.edges[key] = e;
+							await edge.save();
+						}
+						if(!edge.edges[key].edges[evalue]) continue;
+						if(!edge.edges[key].edges[evalue].loaded) {
+							const e = new Graph(`${database.data.key}/${classname}/${key}/${evalue}`);
+							await e.loaded;
+							if(e.value===undefined) continue;
+							edge.edges[key].edges[evalue] = e;
+							await edge.edges[key].save();
+						}
+						if(edge.edges[key].edges[evalue].edges[id]) {
+							delete edge.edges[key].edges[evalue].edges[id];
+							if(Object.keys(edge.edges[key].edges[evalue].edges).length===0) {
+								await database.storage.removeItem(edge.edges[key].edges[evalue].key);
+								delete edge.edges[key].edges[evalue];
+								if(Object.keys(edge.edges[key].edges).length===0) {
+									await database.storage.removeItem(edge.edges[key].key);
+									delete edge.edges[key];
+									await edge.save();
+								} else {
+									await edge.edges[key].save();
+								}
+							} else {
+								await edge.edges[key].edges[evalue].save();
+							}
+						}
+					}
+					this.handle("patch",object,changes);
+					yield object;
 				}
 			}
 			async put(data,durationOrDate) {	

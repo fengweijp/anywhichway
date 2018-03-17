@@ -374,6 +374,8 @@ function() { return this.<command 1>.<command 2>...<command n>; }
 
 `on(pattern,eventType,callback[,persist])` - Ads `callback` as a trigger on `pattern` for the event types `put`, `patch`, `delete`. Optionally, set `persist` to true. See Triggers for more information.
 
+`patch(pattern,data)` - Patches anything that matches `pattern` with `data`. Yields the updated objects that matched the `pattern`.
+
 `pop(f)` - Pulls the first value and does not yield it. If `f` is not null calls `f(value)` with the popped value.
 	
 `provide(...values)` - Yields no values except those in `values`. Effectively replaces the result chain.
@@ -547,6 +549,8 @@ Note: The function `outside` returns a function that take a single argument, `va
 			
 
 # Release History (reverse chronological order)
+
+2018-03-17 - ALPHA v0.0.19a object patching now implemented (sans Metadata re-indexing)
 
 2018-03-16 - ALPHA v0.0.18a enhanced documentation.
 

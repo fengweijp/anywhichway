@@ -73,6 +73,14 @@ describe("Test",function () {
 		test()
 			.then(result => { expect(result).to.equal(1); done(); perf.push({name:this.test.title,fn:test})}).catch(e => done(e))
 	});
+	it(` db0.query().patch({secret:() => true},{secret:"whisper!"}).all()`,function(done) {
+		const test  = eval("()=>"+this.test.title.substring(1));
+		test()
+		.then(result => {
+			done();
+			perf.push({name:this.test.title,fn:test})})
+		.catch(e => done(e))
+	});
 	it(` db0.query().put(new Car({brand:"Jaguar"})).all()`,function() {
 		const test  = eval("()=>"+this.test.title.substring(1));
 		return test()
@@ -478,7 +486,19 @@ describe("Test",function () {
 				}))
 			.catch(e => done(e))
 	});
-	it(` db0.query().on({optin:value=>value===true},"delete",(...args) => passed = args).delete({optin:true}).all()`,function (done) {
+	it(` db0.query().on({optin:() => true},"patch",(...args) => passed = args).patch({optin:true}).all()`,function (done) {
+		let passed;
+		const test  = () => db0.query().on({optin:() => true},"patch",(...args) => passed = args).patch({optin:true}).all();
+		test()
+			.then(result =>
+				setTimeout(() => {
+					expect(Array.isArray(passed)).to.equal(true);
+					this.test.title += " = " + JSON.stringify(result);
+					done();
+				}))
+			.catch(e => done(e))
+	});
+	it(` db0.query().on({optin:()=>true},"delete",(...args) => passed = args).delete({optin:true}).all()`,function (done) {
 		let passed;
 		const test  = () => db0.query().on({optin:(value)=>value===true},"delete",(...args) => passed = args).delete({optin:true}).all();
 		test()
